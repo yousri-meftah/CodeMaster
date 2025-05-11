@@ -30,4 +30,6 @@ This platform is inspired by educational platforms like LeetCode and NeetCode, b
 
 It is designed to be extensible — new features like code execution, leaderboards, or AI feedback can be integrated with minimal changes.
 
----
+## 🗂️ Database Schema
+
+![image](https://github.com/user-attachments/assets/d97ec13e-93b3-4c98-b588-0aab00e195c5)
