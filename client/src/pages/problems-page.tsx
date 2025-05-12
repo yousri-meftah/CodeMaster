@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Search, Tag, Code, ExternalLink } from "lucide-react";
+import { problemsAPI } from "@/services/api";
 
 const ProblemsPage = () => {
   const [location, setLocation] = useLocation();
@@ -31,25 +32,15 @@ const ProblemsPage = () => {
   const [categoryFilter, setCategoryFilter] = useState(initialCategory);
   const [difficultyFilter, setDifficultyFilter] = useState(initialDifficulty);
 
-  // Fetch problems
+  // Fetch problems using the API service
   const { data: problems, isLoading } = useQuery<Problem[]>({
-    queryKey: ["/api/problems", categoryFilter, difficultyFilter],
-    queryFn: async ({ queryKey }) => {
-      const [_, category, difficulty] = queryKey;
-      const url = `/api/problems${category || difficulty ? "?" : ""}${
-        category ? `category=${category}` : ""
-      }${category && difficulty ? "&" : ""}${
-        difficulty ? `difficulty=${difficulty}` : ""
-      }`;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch problems");
-      return res.json();
-    },
+    queryKey: ["problems", categoryFilter, difficultyFilter],
+    queryFn: () => problemsAPI.getAllProblems(),
   });
 
   // Get unique categories
   const categories = problems
-    ? [...new Set(problems.flatMap((p) => p.categories || []))]
+    ? Array.from(new Set(problems.flatMap((p) => p.tags || [])))
     : [];
 
   // Filter problems based on search term
@@ -174,15 +165,11 @@ const ProblemsPage = () => {
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium mr-2 ${getDifficultyColor(problem.difficulty)}`}>
                         {problem.difficulty.charAt(0).toUpperCase() + problem.difficulty.slice(1)}
                       </span>
-                      {problem.successRate && (
-                        <span className="text-xs text-muted-foreground">
-                          Success Rate: {problem.successRate}%
-                        </span>
-                      )}
+                      
                     </div>
                     <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                       <a 
-                        href={problem.externalUrl} 
+                        href={problem.external_link} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
@@ -197,13 +184,13 @@ const ProblemsPage = () => {
                   <div className="flex items-center text-xs text-muted-foreground mb-3 flex-1">
                     <span className="flex items-center mr-3">
                       <Tag className="h-3 w-3 mr-1" />
-                      {problem.categories?.map((category, index) => (
+                      {problem.tags?.map((category, index) => (
                         <span key={category}>
                           {category
                             .split("-")
                             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                             .join(" ")}
-                          {index < (problem.categories?.length || 0) - 1 ? ", " : ""}
+                          {index < (problem.tags?.length || 0) - 1 ? ", " : ""}
                         </span>
                       ))}
                     </span>

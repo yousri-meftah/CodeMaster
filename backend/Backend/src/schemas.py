@@ -6,6 +6,17 @@ from pydantic import BaseModel
 class TagIn(BaseModel):
     name: str
 
+class UserOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    phone: Optional[str]
+    is_admin: Optional[bool]= False
+
+    class Config:
+        orm_mode = True
+
+
 class TagOut(BaseModel):
     id: int
     name: str

@@ -8,6 +8,7 @@ from app.schemas.auth import register_return
 from app.exceptions.user import UserEmailAlreadyExistsException,UserNotFoundException
 from app.controllers.auth import get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
+from schemas import *
 router = APIRouter()
 
 
@@ -38,3 +39,8 @@ async def login(data: OAuth2PasswordRequestForm = Depends(), db: Session = Depen
             detail="Internal server error",
         )
     return Token_return
+
+@router.get("/me", response_model=UserOut)
+def get_me(current_user=Depends(get_current_user)):
+    print("cur = ",current_user.__dict__)
+    return UserOut(**current_user.__dict__)

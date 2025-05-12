@@ -15,8 +15,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends
     payload = decode_access_token(token)
     if not payload or type(payload) is not dict:
         return None
-
-    user_id = payload.get("id", None)
+    user_id = payload.get("sub", None)
     if not user_id:
         return None
 

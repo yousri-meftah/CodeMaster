@@ -42,10 +42,10 @@ const RoadmapPage = () => {
   const { data: userProgress, isLoading: progressLoading } = useQuery<UserProgress>({
     queryKey: ["/api/progress"],
     enabled: !!user,
-    onError: (error) => {
-      console.error("Failed to fetch user progress", error);
+    onError: () => {
+      console.error("Failed to fetch user progress");
       toast({
-        title: "Error",
+        title: "Error", 
         description: "Failed to load your progress data. Please try again later.",
         variant: "destructive",
       });

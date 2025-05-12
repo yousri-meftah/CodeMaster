@@ -1,48 +1,71 @@
-import { createContext, ReactNode, useContext } from "react";
-import {
-  useQuery,
-  useMutation,
-  UseMutationResult,
-} from "@tanstack/react-query";
-import { insertUserSchema, User as SelectUser, InsertUser } from "@shared/schema";
-import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
+import { createContext, ReactNode, useContext, useEffect } from "react";
+import { useQuery, useMutation, UseMutationResult, useQueryClient } from "@tanstack/react-query";
+import { authAPI, type User, type LoginData, type RegisterData } from "../services/api";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 type AuthContextType = {
-  user: SelectUser | null;
+  user: User | null;
   isLoading: boolean;
   error: Error | null;
-  loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
+  isAdmin: boolean;
+  loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
+  registerMutation: UseMutationResult<User, Error, RegisterData>;
 };
-
-type LoginData = Pick<InsertUser, "username" | "password">;
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  
   const {
     data: user,
     error,
     isLoading,
-  } = useQuery<SelectUser | null, Error>({
-    queryKey: ["/api/user"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    refetch: refetchUser
+  } = useQuery<User | null, Error>({
+    queryKey: ["user"],
+    queryFn: authAPI.getCurrentUser,
+    retry: false,
+    enabled: !!localStorage.getItem('token')
   });
 
+  console.log("user = ", user);
+  const isAdmin = user?.is_admin ?? false;
+
+  // Check if user is admin when accessing admin routes
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/admin')) {
+      if (isLoading) {
+        // Wait for user data to load
+        return;
+      }
+      
+      if (!user || !isAdmin) {
+        setLocation('/');
+        toast({
+          title: "Access Denied",
+          description: "You don't have permission to access this page.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [isAdmin, isLoading, user, setLocation, toast]);
+
   const loginMutation = useMutation({
-    mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
-    },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    mutationFn: authAPI.login,
+    onSuccess: async () => {
+      // After login, fetch user data
+      await refetchUser();
       toast({
         title: "Login successful",
-        description: `Welcome back, ${user.username}!`,
+        description: "Welcome back!",
       });
+      setLocation("/");
     },
     onError: (error: Error) => {
       toast({
@@ -54,16 +77,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (credentials: InsertUser) => {
-      const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
-    },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    mutationFn: authAPI.register,
+    onSuccess: async () => {
+      // After register, fetch user data
+      await refetchUser();
       toast({
         title: "Registration successful",
-        description: `Welcome to CodePractice, ${user.username}!`,
+        description: "Welcome to CodePractice!",
       });
+      setLocation("/");
     },
     onError: (error: Error) => {
       toast({
@@ -75,15 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
-    },
+    mutationFn: authAPI.logout,
     onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
+      // Clear user data from cache
+      queryClient.setQueryData(["user"], null);
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
       });
+      setLocation("/");
     },
     onError: (error: Error) => {
       toast({
@@ -100,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: user ?? null,
         isLoading,
         error,
+        isAdmin,
         loginMutation,
         logoutMutation,
         registerMutation,

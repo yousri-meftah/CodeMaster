@@ -10,6 +10,7 @@ app = FastAPI(
     docs_url='/',
 )
 origins = [
+    "*",
     "http://localhost",
     "http://localhost:3000",
 ]
