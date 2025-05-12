@@ -39,10 +39,13 @@ def is_password_strong_enough(password: str) -> bool:
 
 
 def create_access_token(data: dict):
-    expiry = settings.JWT_EXPIRATION_MINUETS
     payload = data.copy()
-    expire_at = datetime.utcnow() + timedelta(settings.JWT_EXPIRATION_MINUETS)
+    if "sub" in payload:
+        payload["sub"] = str(payload["sub"])
+
+    expire_at = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRATION_MINUETS)
     payload.update({"exp": expire_at})
+    
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -50,7 +53,7 @@ def create_access_token(data: dict):
 
 def decode_access_token(token: str):
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
@@ -58,7 +61,8 @@ def decode_access_token(token: str):
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.JWTError:
+    except jwt.JWTError as e:
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
