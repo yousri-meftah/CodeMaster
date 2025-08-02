@@ -26,9 +26,18 @@ def save_solution(data: SavedSolutionIn, db: Session = Depends(get_db), user=Dep
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/", response_model=List[SavedSolutionOut])
-def get_my_solutions(db: Session = Depends(get_db), user=Depends(get_current_user)):
+@router.get("/{problem_id}", response_model=Optional[SavedSolutionOut])
+def get_my_solution_for_problem(
+    problem_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
     try:
-        return db.query(SavedSolution).filter_by(user_id=user.id).all()
+        solution = (
+            db.query(SavedSolution)
+            .filter(SavedSolution.user_id == user.id, SavedSolution.problem_id == problem_id)
+            .first()
+        )
+        return solution  
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     enabled: !!localStorage.getItem('token')
   });
 
-  console.log("user = ", user);
+  
   const isAdmin = user?.is_admin ?? false;
 
   // Check if user is admin when accessing admin routes

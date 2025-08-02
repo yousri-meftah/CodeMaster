@@ -8,12 +8,12 @@ import { ExternalLink, ChevronRight, Code, BookOpen, Route } from "lucide-react"
 const HomePage = () => {
   // Fetch problem categories
   const { data: problems } = useQuery<Problem[]>({
-    queryKey: ["/api/problems"],
+    queryKey: ["/problems"],
   });
 
   // Fetch latest articles
   const { data: articles } = useQuery<Article[]>({
-    queryKey: ["/api/articles"],
+    queryKey: ["/articles"],
   });
 
   // Extract categories from problems data

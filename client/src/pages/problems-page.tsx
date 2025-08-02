@@ -34,8 +34,14 @@ const ProblemsPage = () => {
 
   // Fetch problems using the API service
   const { data: problems, isLoading } = useQuery<Problem[]>({
-    queryKey: ["problems", categoryFilter, difficultyFilter],
-    queryFn: () => problemsAPI.getAllProblems(),
+    queryKey: ["problems", searchTerm, difficultyFilter],
+    queryFn: () =>
+      problemsAPI.getAllProblems({
+        name: searchTerm || undefined,
+        difficulty: difficultyFilter && difficultyFilter !== "all-difficulties" 
+          ? difficultyFilter 
+          : undefined,
+      }),
   });
 
   // Get unique categories
@@ -44,11 +50,7 @@ const ProblemsPage = () => {
     : [];
 
   // Filter problems based on search term
-  const filteredProblems = problems
-    ? problems.filter((problem) =>
-        problem.title.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : [];
+   const filteredProblems = problems || [];
 
   // Handle filter changes
   const handleCategoryChange = (value: string) => {
@@ -108,9 +110,7 @@ const ProblemsPage = () => {
         </div>
 
         <Select value={categoryFilter} onValueChange={handleCategoryChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
+          
           <SelectContent>
             <SelectItem value="all-categories">All Categories</SelectItem>
             {categories.map((category) => (

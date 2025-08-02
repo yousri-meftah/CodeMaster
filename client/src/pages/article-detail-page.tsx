@@ -30,7 +30,7 @@ const ArticleDetailPage = () => {
   
   // Fetch article details
   const { data: article, isLoading } = useQuery<Article>({
-    queryKey: [`/api/articles/${articleId}`],
+    queryKey: [`/articles/${articleId}`],
     enabled: !isNaN(articleId),
   });
 

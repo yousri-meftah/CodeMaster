@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-
+from fastapi import Query
 from schemas import *
 from app.models import *
 from database import get_db
 from app.controllers.auth import get_current_user
+from sqlalchemy import func
 
 router = APIRouter()
 
@@ -28,9 +29,21 @@ def create_problem(data: ProblemIn, db: Session = Depends(get_db), user=Depends(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=List[ProblemOut])
-def get_all_problems(db: Session = Depends(get_db)):
+def get_all_problems(
+    db: Session = Depends(get_db),
+    difficulty: Optional[str] = Query(None, description="Filter by difficulty"),
+    name: Optional[str] = Query(None, description="Filter by problem name (partial match)"),
+):
     try:
-        return db.query(Problem).all()
+        query = db.query(Problem)
+
+        if difficulty:
+            query = query.filter(func.upper(Problem.difficulty) == difficulty.upper())
+
+        if name:
+            query = query.filter(Problem.title.ilike(f"%{name}%"))
+
+        return query.all()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

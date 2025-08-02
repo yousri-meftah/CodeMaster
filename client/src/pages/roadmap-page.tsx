@@ -35,12 +35,12 @@ const RoadmapPage = () => {
   
   // Fetch roadmaps
   const { data: roadmaps, isLoading } = useQuery<Roadmap[]>({
-    queryKey: ["/api/roadmaps"],
+    queryKey: ["/roadmaps"],
   });
   
   // Fetch user progress
   const { data: userProgress, isLoading: progressLoading } = useQuery<UserProgress>({
-    queryKey: ["/api/progress"],
+    queryKey: ["/progress"],
     enabled: !!user,
     onError: () => {
       console.error("Failed to fetch user progress");
@@ -67,11 +67,11 @@ const RoadmapPage = () => {
   // Update progress mutation
   const updateProgressMutation = useMutation({
     mutationFn: async (data: { roadmapId: number, completedSteps: number[] }) => {
-      const res = await apiRequest("POST", "/api/progress/roadmap", data);
+      const res = await apiRequest("POST", "/progress/roadmap", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/progress"] });
+      queryClient.invalidateQueries({ queryKey: ["/progress"] });
       toast({
         title: "Progress updated",
         description: "Your roadmap progress has been saved.",

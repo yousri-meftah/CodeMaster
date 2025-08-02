@@ -35,13 +35,13 @@ const ProfilePage = () => {
 
   // Fetch user's progress
   const { data: progress, isLoading: progressLoading } = useQuery({
-    queryKey: ["/api/progress"],
+    queryKey: ["/progress"],
     enabled: !!user,
   });
 
   // Fetch user's solutions
   const { data: solutions, isLoading: solutionsLoading } = useQuery<UserSolution[]>({
-    queryKey: ["/api/user/solutions"],
+    queryKey: ["/user/solutions"],
     enabled: !!user,
   });
 

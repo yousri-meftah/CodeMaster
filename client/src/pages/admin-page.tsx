@@ -68,6 +68,7 @@ import {
   Search,
   Loader2
 } from "lucide-react";
+import { problemsAPI } from "@/services/api";
 
 const formSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -110,22 +111,22 @@ const AdminPage = () => {
   
   // Problems data
   const { data: problems, isLoading: problemsLoading } = useQuery<Problem[]>({
-    queryKey: ["/api/problems"],
+    queryKey: ["/problems"],
   });
 
   // Articles data
   const { data: articles, isLoading: articlesLoading } = useQuery<Article[]>({
-    queryKey: ["/api/articles"],
+    queryKey: ["/articles"],
   });
 
   // Roadmaps data
   const { data: roadmaps, isLoading: roadmapsLoading } = useQuery<Roadmap[]>({
-    queryKey: ["/api/roadmaps"],
+    queryKey: ["/roadmaps"],
   });
 
   // Users data (simplified)
   const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ["/api/users"],
+    queryKey: ["/users"],
     queryFn: () => Promise.resolve([]), // This would be an actual API call in production
   });
 
@@ -175,36 +176,42 @@ const AdminPage = () => {
 
   // Create problem mutation
   const createProblemMutation = useMutation({
-    mutationFn: async (data: InsertProblem) => {
-      const res = await apiRequest("POST", "/api/problems", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/problems"] });
-      toast({
-        title: "Problem created",
-        description: "The problem has been created successfully.",
-      });
-      setIsAddDialogOpen(false);
-      form.reset();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to create problem",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  mutationFn: async (data: {
+    title: string;
+    difficulty: string;
+    external_link: string;
+    tag_ids: number[];
+  }) => {
+    return problemsAPI.createProblem(data); // ✅ Axios returns parsed data
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["problems"] }); // ✅ must match your list
+    toast({
+      title: "Problem created",
+      description: "The problem has been created successfully.",
+    });
+    setIsAddDialogOpen(false);
+    form.reset();
+  },
+  onError: (error: Error) => {
+    toast({
+      title: "Failed to create problem",
+      description: error.message,
+      variant: "destructive",
+    });
+  },
+});
+
+
 
   // Update problem mutation
   const updateProblemMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertProblem> }) => {
-      const res = await apiRequest("PUT", `/api/problems/${id}`, data);
+      const res = await apiRequest("PUT", `/problems/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/problems"] });
+      queryClient.invalidateQueries({ queryKey: ["/problems"] });
       toast({
         title: "Problem updated",
         description: "The problem has been updated successfully.",
@@ -226,10 +233,10 @@ const AdminPage = () => {
   // Delete problem mutation
   const deleteProblemMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/api/problems/${id}`);
+      return apiRequest("DELETE", `/problems/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/problems"] });
+      queryClient.invalidateQueries({ queryKey: ["/problems"] });
       toast({
         title: "Problem deleted",
         description: "The problem has been deleted successfully.",
@@ -250,11 +257,11 @@ const AdminPage = () => {
   // Create article mutation
   const createArticleMutation = useMutation({
     mutationFn: async (data: InsertArticle) => {
-      const res = await apiRequest("POST", "/api/articles", data);
+      const res = await apiRequest("POST", "/articles", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/articles"] });
+      queryClient.invalidateQueries({ queryKey: ["/articles"] });
       toast({
         title: "Article created",
         description: "The article has been created successfully.",
@@ -276,11 +283,11 @@ const AdminPage = () => {
   // Update article mutation
   const updateArticleMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertArticle> }) => {
-      const res = await apiRequest("PUT", `/api/articles/${id}`, data);
+      const res = await apiRequest("PUT", `/articles/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/articles"] });
+      queryClient.invalidateQueries({ queryKey: ["/articles"] });
       toast({
         title: "Article updated",
         description: "The article has been updated successfully.",
@@ -302,10 +309,10 @@ const AdminPage = () => {
   // Delete article mutation
   const deleteArticleMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/api/articles/${id}`);
+      return apiRequest("DELETE", `/articles/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/articles"] });
+      queryClient.invalidateQueries({ queryKey: ["/articles"] });
       toast({
         title: "Article deleted",
         description: "The article has been deleted successfully.",
@@ -326,11 +333,11 @@ const AdminPage = () => {
   // Create roadmap mutation
   const createRoadmapMutation = useMutation({
     mutationFn: async (data: InsertRoadmap) => {
-      const res = await apiRequest("POST", "/api/roadmaps", data);
+      const res = await apiRequest("POST", "/roadmaps", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roadmaps"] });
+      queryClient.invalidateQueries({ queryKey: ["/roadmaps"] });
       toast({
         title: "Roadmap created",
         description: "The roadmap has been created successfully.",
@@ -352,11 +359,11 @@ const AdminPage = () => {
   // Update roadmap mutation
   const updateRoadmapMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertRoadmap> }) => {
-      const res = await apiRequest("PUT", `/api/roadmaps/${id}`, data);
+      const res = await apiRequest("PUT", `/roadmaps/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roadmaps"] });
+      queryClient.invalidateQueries({ queryKey: ["/roadmaps"] });
       toast({
         title: "Roadmap updated",
         description: "The roadmap has been updated successfully.",
@@ -378,10 +385,10 @@ const AdminPage = () => {
   // Delete roadmap mutation
   const deleteRoadmapMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/api/roadmaps/${id}`);
+      return apiRequest("DELETE", `/roadmaps/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roadmaps"] });
+      queryClient.invalidateQueries({ queryKey: ["/roadmaps"] });
       toast({
         title: "Roadmap deleted",
         description: "The roadmap has been deleted successfully.",

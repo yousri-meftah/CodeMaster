@@ -11,11 +11,10 @@ import { useTheme } from "@/context/ThemeProvider";
 interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
-  language: string;
   height?: string;
 }
 
-const CodeEditor = ({ value, onChange, language, height = "400px" }: CodeEditorProps) => {
+const CodeEditor = ({ value, onChange, height = "400px" }: CodeEditorProps) => {
   const { theme } = useTheme();
   const [editorTheme, setEditorTheme] = useState(theme === "dark" ? dracula : githubLight);
 
@@ -23,86 +22,16 @@ const CodeEditor = ({ value, onChange, language, height = "400px" }: CodeEditorP
     setEditorTheme(theme === "dark" ? dracula : githubLight);
   }, [theme]);
 
-  const getLanguageExtension = () => {
-    switch (language) {
-      case "javascript":
-        return javascript();
-      case "python":
-        return python();
-      case "java":
-        return java();
-      case "cpp":
-        return cpp();
-      default:
-        return javascript();
-    }
-  };
+  
 
   const getLanguageStarter = () => {
-    if (value) return value;
-
-    switch (language) {
-      case "javascript":
-        return `/**
- * Starter code for your solution
- */
-function solution(input) {
-  // Your code here
-  
-  return result;
-}
-`;
-      case "python":
-        return `def solution(input):
-    # Your code here
-    
-    return result
-`;
-      case "java":
-        return `class Solution {
-    public static void main(String[] args) {
-        // Test your solution
-        System.out.println(solution(null));
-    }
-    
-    public static Object solution(Object input) {
-        // Your code here
-        
-        return null;
-    }
-}
-`;
-      case "cpp":
-        return `#include <iostream>
-#include <vector>
-using namespace std;
-
-// Your solution here
-vector<int> solution(vector<int>& input) {
-    // Your code here
-    
-    return {};
-}
-
-int main() {
-    // Test your solution
-    return 0;
-}
-`;
-      default:
-        return "";
-    }
+    return "";
   };
 
   return (
     <div className="border rounded-md overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 bg-muted">
-        <span className="text-sm">{language}.{
-          language === "javascript" ? "js" :
-          language === "python" ? "py" :
-          language === "java" ? "java" :
-          language === "cpp" ? "cpp" : "txt"
-        }</span>
+        
         <div className="flex space-x-2">
           <button className="text-muted-foreground hover:text-foreground">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -117,11 +46,10 @@ int main() {
         </div>
       </div>
       <CodeMirror
-        value={getLanguageStarter()}
+        value={value}
         onChange={onChange}
         theme={editorTheme}
         height={height}
-        extensions={[getLanguageExtension()]}
         basicSetup={{
           lineNumbers: true,
           highlightActiveLineGutter: true,

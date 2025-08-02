@@ -25,10 +25,10 @@ const ExplorePage = () => {
 
   // Fetch articles
   const { data: articles, isLoading } = useQuery<Article[]>({
-    queryKey: ["/api/articles", categoryFilter],
+    queryKey: ["/articles", categoryFilter],
     queryFn: async ({ queryKey }) => {
       const [_, category] = queryKey;
-      const url = `/api/articles${category ? `?category=${category}` : ""}`;
+      const url = `/articles${category ? `?category=${category}` : ""}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch articles");
       return res.json();

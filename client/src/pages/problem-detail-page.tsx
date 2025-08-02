@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,25 +8,9 @@ import CodeEditor from "@/components/CodeEditor";
 import { 
   Card, 
   CardContent, 
-  CardHeader, 
-  CardTitle 
 } from "@/components/ui/card";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
-} from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { Loader2, ExternalLink, Save, BookmarkPlus, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -38,11 +22,8 @@ const ProblemDetailPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  const [language, setLanguage] = useState("javascript");
   const [code, setCode] = useState("");
-  const [commentText, setCommentText] = useState("");
 
-  // Fetch problem details using the API service
   const { data: problem, isLoading: problemLoading } = useQuery<Problem>({
     queryKey: ["problem", problemId],
     queryFn: () => problemsAPI.getProblemById(id),
@@ -69,6 +50,19 @@ const ProblemDetailPage = () => {
       });
     },
   });
+
+  const { data: savedSolution, isLoading: solutionLoading } = useQuery({
+    queryKey: ["solution", problemId],
+    queryFn: () => problemsAPI.getSolutionByProblem(problemId),
+    enabled: !!user && !isNaN(problemId),
+  });
+  useEffect(() => {
+    if (savedSolution?.code) {
+      setCode(savedSolution.code);
+    }
+  }, [savedSolution]);
+
+
 
   const handleSaveSolution = () => {
     if (!user) {
@@ -130,11 +124,9 @@ const ProblemDetailPage = () => {
         return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
     }
   }
-  console.log("problem", problem);
 
   return (
     <div className="space-y-8">
-      {/* Problem Header */}
       <Card>
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -207,7 +199,7 @@ const ProblemDetailPage = () => {
       <Card>
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-4">
-            <Select value={language} onValueChange={setLanguage}>
+            {/* <Select value={language} onValueChange={setLanguage}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select language" />
               </SelectTrigger>
@@ -217,7 +209,7 @@ const ProblemDetailPage = () => {
                 <SelectItem value="java">Java</SelectItem>
                 <SelectItem value="cpp">C++</SelectItem>
               </SelectContent>
-            </Select>
+            </Select> */}
             <div className="flex space-x-2">
               <Button
                 variant="outline"
@@ -240,7 +232,6 @@ const ProblemDetailPage = () => {
           <CodeEditor
             value={code}
             onChange={setCode}
-            language={language}
             height="500px"
           />
         </CardContent>

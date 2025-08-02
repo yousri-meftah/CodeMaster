@@ -58,12 +58,19 @@ export const authAPI = {
   },
 
   register: async (data: RegisterData): Promise<User> => {
-    const response = await api.post('/auth/register', data);
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-    }
-    return response.data;
-  },
+  const payload = {
+    name: data.name,
+    password: data.password,
+    email: data.username,
+  };
+
+  const response = await api.post('/auth/register', payload);
+
+  if (response.data.token) {
+    localStorage.setItem('token', response.data.token);
+  }
+  return response.data;
+},
 
   logout: async (): Promise<void> => {
     localStorage.removeItem('token');
@@ -75,12 +82,11 @@ export const authAPI = {
   },
 };
 
-// Problems related API calls
-export const problemsAPI = {
-  getAllProblems: async () => {
-    const response = await api.get('/problem');
-    return response.data;
-  },
+  export const problemsAPI = {
+  getAllProblems: async (params?: { name?: string; difficulty?: string }) => {
+  const response = await api.get("/problem", { params });
+  return response.data;
+},
 
   getProblemById: async (id: string) => {
     const response = await api.get(`/problem/${id}`);
@@ -92,6 +98,21 @@ export const problemsAPI = {
       problem_id: parseInt(problemId),
       code: code
     });
+    return response.data;
+  },
+  getSolutionByProblem: async (problemId: number) => {
+    const res = await api.get(`/SavedSolution/${problemId}`);
+    return res.data|| { code: "" }; 
+  },
+  createProblem: async (data : any) => {
+    const payload = {
+      title: data.title,
+      difficulty: data.difficulty,
+      external_link: data.externalUrl,
+      tag_ids : []
+    };
+    console.log("payload in createProblem:", payload);
+    const response = await api.post("/problem", payload);
     return response.data;
   },
 };
@@ -110,16 +131,16 @@ export const roadmapAPI = {
 };
 
 // User progress related API calls
-export const progressAPI = {
-  getUserProgress: async () => {
-    const response = await api.get('/progress');
-    return response.data;
-  },
+// export const progressAPI = {
+//   getUserProgress: async () => {
+//     const response = await api.get('/progress');
+//     return response.data;
+//   },
 
-  updateProgress: async (problemId: string, status: string) => {
-    const response = await api.post('/progress', { problemId, status });
-    return response.data;
-  },
-};
+//   updateProgress: async (problemId: string, status: string) => {
+//     const response = await api.post('/progress', { problemId, status });
+//     return response.data;
+//   },
+// };
 
 export default api; 
