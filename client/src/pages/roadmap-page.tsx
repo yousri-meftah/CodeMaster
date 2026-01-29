@@ -4,6 +4,7 @@ import { Roadmap, UserProgress } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { roadmapAPI } from "@/services/api";
 import { 
   Card, 
   CardContent, 
@@ -34,9 +35,11 @@ const RoadmapPage = () => {
   const [completedSteps, setCompletedSteps] = useState<{[roadmapId: number]: number[]}>({});
   
   // Fetch roadmaps
-  const { data: roadmaps, isLoading } = useQuery<Roadmap[]>({
-    queryKey: ["/roadmaps"],
+  const { data: roadmapApi, isLoading } = useQuery({
+    queryKey: ["roadmaps"],
+    queryFn: () => roadmapAPI.getAllRoadmaps(),
   });
+  const roadmaps: Roadmap[] = (roadmapApi || []).map(roadmapAPI.normalizeRoadmap);
   
   // Fetch user progress
   const { data: userProgress, isLoading: progressLoading } = useQuery<UserProgress>({

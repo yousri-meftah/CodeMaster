@@ -1,20 +1,42 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { queryClient } from "@/lib/queryClient";
 import { Problem } from "@shared/schema";
 import CodeEditor from "@/components/CodeEditor";
 import { 
   Card, 
   CardContent, 
 } from "@/components/ui/card";
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Loader2, ExternalLink, Save, BookmarkPlus, RefreshCw } from "lucide-react";
+import { Loader2, ExternalLink, Play, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { problemsAPI } from "@/services/api";
+
+type ProblemTestCase = {
+  id: number;
+  input_text: string;
+  output_text: string;
+  is_sample: boolean;
+  order: number;
+};
+
+type ProblemDetail = Problem & {
+  description?: string | null;
+  test_cases?: ProblemTestCase[];
+  starter_codes?: ProblemStarterCode[];
+};
+
+type ProblemStarterCode = {
+  id: number;
+  language: string;
+  code: string;
+};
 
 const ProblemDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,35 +45,18 @@ const ProblemDetailPage = () => {
   const { toast } = useToast();
   
   const [code, setCode] = useState("");
+  const [language, setLanguage] = useState("javascript");
+  const [activeTab, setActiveTab] = useState("description");
+  const [lastStarter, setLastStarter] = useState("");
+  const [hasUserEdits, setHasUserEdits] = useState(false);
 
-  const { data: problem, isLoading: problemLoading } = useQuery<Problem>({
+  const { data: problem, isLoading: problemLoading } = useQuery<ProblemDetail>({
     queryKey: ["problem", problemId],
     queryFn: () => problemsAPI.getProblemById(id),
     enabled: !isNaN(problemId),
   });
 
-  // Save solution mutation
-  const saveSolutionMutation = useMutation({
-    mutationFn: async (data: { code: string; language: string }) => {
-      return problemsAPI.submitSolution(id, data.code);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["problem", problemId] });
-      toast({
-        title: "Solution submitted",
-        description: "Your solution has been submitted successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to submit solution",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const { data: savedSolution, isLoading: solutionLoading } = useQuery({
+  const { data: savedSolution } = useQuery({
     queryKey: ["solution", problemId],
     queryFn: () => problemsAPI.getSolutionByProblem(problemId),
     enabled: !!user && !isNaN(problemId),
@@ -59,12 +64,26 @@ const ProblemDetailPage = () => {
   useEffect(() => {
     if (savedSolution?.code) {
       setCode(savedSolution.code);
+      setHasUserEdits(true);
     }
   }, [savedSolution]);
 
+  const handleRun = () => {
+    if (!code.trim()) {
+      toast({
+        title: "Empty solution",
+        description: "Please write your solution before running.",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "Run prepared",
+      description: "Run endpoint will be connected later.",
+    });
+  };
 
-
-  const handleSaveSolution = () => {
+  const handleSubmit = () => {
     if (!user) {
       toast({
         title: "Authentication required",
@@ -73,7 +92,6 @@ const ProblemDetailPage = () => {
       });
       return;
     }
-
     if (!code.trim()) {
       toast({
         title: "Empty solution",
@@ -82,13 +100,37 @@ const ProblemDetailPage = () => {
       });
       return;
     }
-    
-    saveSolutionMutation.mutate({ code, language });
+    toast({
+      title: "Submit prepared",
+      description: "Submit endpoint will be connected later.",
+    });
   };
 
-  const handleResetCode = () => {
-    setCode("");
-  };
+  const headerTags = useMemo(() => problem?.tags ?? [], [problem?.tags]);
+  const sampleCases = useMemo(
+    () => (problem?.test_cases ?? []).sort((a, b) => a.order - b.order),
+    [problem?.test_cases]
+  );
+  const starterCodeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (problem?.starter_codes ?? []).forEach((starter) => {
+      map.set(starter.language.toLowerCase(), starter.code);
+    });
+    return map;
+  }, [problem?.starter_codes]);
+
+  useEffect(() => {
+    if (!problem) return;
+    if (savedSolution?.code) return;
+    const starter = starterCodeMap.get(language.toLowerCase()) ?? "";
+    if (!starter) return;
+    const shouldReplace = !hasUserEdits || code.trim() === "" || code === lastStarter;
+    if (shouldReplace) {
+      setCode(starter);
+      setLastStarter(starter);
+      setHasUserEdits(false);
+    }
+  }, [problem, language, starterCodeMap, savedSolution, hasUserEdits, code, lastStarter]);
 
   if (problemLoading) {
     return (
@@ -126,116 +168,160 @@ const ProblemDetailPage = () => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center mb-2">
-                <Badge
-                  className={getDifficultyColor(problem.difficulty)}
-                >
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Badge className={getDifficultyColor(problem.difficulty)}>
                   {problem.difficulty}
                 </Badge>
+                <span className="text-sm text-muted-foreground">#{problem.id}</span>
               </div>
               <h1 className="text-2xl font-bold">{problem.title}</h1>
-              <div className="flex items-center mt-2 space-x-4">
-                {problem.tags && problem.tags.length > 0 && (
-                  <span className="flex items-center text-sm text-muted-foreground">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 mr-1"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                      />
-                    </svg>
-                    {problem.tags.join(", ")}
-                  </span>
-                )}
-                <span className="flex items-center text-sm text-muted-foreground">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                    />
-                  </svg>
-                  Problem #{problem.id}
-                </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {headerTags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="capitalize">
+                    {tag.replace(/-/g, " ")}
+                  </Badge>
+                ))}
               </div>
             </div>
-            {problem.external_link && (
-              <Button variant="outline" asChild>
-                <a 
-                  href={problem.external_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View on LeetCode
-                </a>
+            <div className="flex items-center gap-2">
+              {problem.external_link && (
+                <Button variant="outline" asChild>
+                  <a 
+                    href={problem.external_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Reference
+                  </a>
+                </Button>
+              )}
+              <Button variant="outline" onClick={handleRun} className="flex items-center">
+                <Play className="h-4 w-4 mr-2" />
+                Run
               </Button>
-            )}
+              <Button onClick={handleSubmit} className="flex items-center">
+                <UploadCloud className="h-4 w-4 mr-2" />
+                Submit
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Code Editor */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            {/* <Select value={language} onValueChange={setLanguage}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select language" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="javascript">JavaScript</SelectItem>
-                <SelectItem value="python">Python</SelectItem>
-                <SelectItem value="java">Java</SelectItem>
-                <SelectItem value="cpp">C++</SelectItem>
-              </SelectContent>
-            </Select> */}
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResetCode}
-                className="flex items-center"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Reset
-              </Button>
-              <Button
-                onClick={handleSaveSolution}
-                className="flex items-center"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Save Solution
-              </Button>
-            </div>
-          </div>
-          <CodeEditor
-            value={code}
-            onChange={setCode}
-            height="500px"
-          />
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
+        <Card className="min-h-[600px]">
+          <CardContent className="p-0 h-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+              <div className="border-b px-6 py-4">
+                <TabsList>
+                  <TabsTrigger value="description">Description</TabsTrigger>
+                  <TabsTrigger value="examples">Examples</TabsTrigger>
+                  <TabsTrigger value="constraints">Constraints</TabsTrigger>
+                </TabsList>
+              </div>
+              <ScrollArea className="h-[520px] px-6 py-5">
+                <TabsContent value="description" className="mt-0">
+                  <div className="space-y-4 text-sm leading-6 whitespace-pre-wrap">
+                    {problem.description ? (
+                      problem.description
+                    ) : (
+                      <div className="text-muted-foreground">
+                        No description yet. Add one in the backend to display it here.
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+                <TabsContent value="examples" className="mt-0">
+                  <div className="space-y-4">
+                    {sampleCases.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">
+                        No sample test cases yet.
+                      </div>
+                    ) : (
+                      sampleCases.map((tc, index) => (
+                        <div key={tc.id} className="rounded-md border bg-muted/20 p-4 space-y-2">
+                          <div className="text-xs uppercase text-muted-foreground">
+                            Example {index + 1}
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-medium">Input:</span>
+                            <div className="font-mono text-xs mt-1 bg-background border rounded p-2">
+                              {tc.input_text}
+                            </div>
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-medium">Output:</span>
+                            <div className="font-mono text-xs mt-1 bg-background border rounded p-2">
+                              {tc.output_text}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+                <TabsContent value="constraints" className="mt-0">
+                  <div className="text-sm text-muted-foreground">
+                    Constraints will be added later.
+                  </div>
+                </TabsContent>
+              </ScrollArea>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Select value={language} onValueChange={setLanguage}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="javascript">JavaScript</SelectItem>
+                      <SelectItem value="python">Python</SelectItem>
+                      <SelectItem value="java">Java</SelectItem>
+                      <SelectItem value="cpp">C++</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Starter code loaded for {language}
+                </div>
+              </div>
+              <CodeEditor
+                value={code}
+                onChange={(value) => {
+                  setCode(value);
+                  if (value !== lastStarter) {
+                    setHasUserEdits(true);
+                  }
+                }}
+                height="520px"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="text-sm font-medium">Run Output</div>
+              <div className="rounded-md border bg-muted/40 p-3">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2 mt-2" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };

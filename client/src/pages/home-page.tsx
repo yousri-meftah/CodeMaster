@@ -3,12 +3,19 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Problem, Article } from "@shared/schema";
+import { problemsAPI } from "@/services/api";
 import { ExternalLink, ChevronRight, Code, BookOpen, Route } from "lucide-react";
 
 const HomePage = () => {
   // Fetch problem categories
   const { data: problems } = useQuery<Problem[]>({
-    queryKey: ["/problems"],
+    queryKey: ["problems"],
+    queryFn: () => problemsAPI.getAllProblems(),
+  });
+
+  const { data: dailyProblem } = useQuery<Problem>({
+    queryKey: ["daily-problem"],
+    queryFn: () => problemsAPI.getDailyProblem(),
   });
 
   // Fetch latest articles
@@ -18,10 +25,10 @@ const HomePage = () => {
 
   // Extract categories from problems data
   const categories = problems
-    ? [...new Set(problems.flatMap(problem => problem.categories || []))]
+    ? [...new Set(problems.flatMap(problem => problem.tags || []))]
           .slice(0, 4)
           .map(category => {
-            const categoryProblems = problems.filter(p => p.categories?.includes(category));
+            const categoryProblems = problems.filter(p => p.tags?.includes(category));
             return {
               name: formatCategoryName(category),
               slug: category,
@@ -110,6 +117,28 @@ const HomePage = () => {
           <CardContent className="p-6 text-center">
             <p className="text-3xl font-bold text-purple-500 mb-2">10+</p>
             <p className="text-muted-foreground">Interview Roadmaps</p>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Daily Problem */}
+      <section className="py-6">
+        <Card className="border-primary/20">
+          <CardContent className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <p className="text-sm uppercase tracking-wide text-muted-foreground mb-2">Daily Problem</p>
+              <h2 className="text-2xl font-bold">
+                {dailyProblem?.title ?? "Loading..."}
+              </h2>
+              <p className="text-muted-foreground">
+                {dailyProblem
+                  ? `Difficulty: ${dailyProblem.difficulty}`
+                  : "Fetching today’s challenge"}
+              </p>
+            </div>
+            <Link href={dailyProblem ? `/problems/${dailyProblem.id}` : "/problems"}>
+              <Button size="lg">Solve Now</Button>
+            </Link>
           </CardContent>
         </Card>
       </section>

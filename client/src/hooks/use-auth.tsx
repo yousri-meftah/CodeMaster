@@ -56,6 +56,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isAdmin, isLoading, user, setLocation, toast]);
 
+  useEffect(() => {
+    const handler = () => {
+      queryClient.setQueryData(["user"], null);
+      toast({
+        title: "Session expired",
+        description: "Please sign in again.",
+        variant: "destructive",
+      });
+      setLocation("/auth");
+    };
+    window.addEventListener("auth:expired", handler);
+    return () => window.removeEventListener("auth:expired", handler);
+  }, [queryClient, setLocation, toast]);
+
   const loginMutation = useMutation({
     mutationFn: authAPI.login,
     onSuccess: async () => {

@@ -24,19 +24,55 @@ class TagOut(BaseModel):
     class Config:
         orm_mode = True
 
+# ---------- PROBLEM TEST CASE ----------
+class ProblemTestCaseIn(BaseModel):
+    input_text: str
+    output_text: str
+    is_sample: Optional[bool] = True
+    order: Optional[int] = 0
+
+class ProblemTestCaseOut(BaseModel):
+    id: int
+    input_text: str
+    output_text: str
+    is_sample: bool
+    order: int
+
+    class Config:
+        orm_mode = True
+
+# ---------- PROBLEM STARTER CODE ----------
+class ProblemStarterCodeIn(BaseModel):
+    language: str
+    code: str
+
+class ProblemStarterCodeOut(BaseModel):
+    id: int
+    language: str
+    code: str
+
+    class Config:
+        orm_mode = True
+
 # ---------- PROBLEM ----------
 class ProblemIn(BaseModel):
     title: str
     difficulty: str
     external_link: Optional[str]
+    description: Optional[str] = None
     tag_ids: List[int]
+    test_cases: Optional[List[ProblemTestCaseIn]] = None
+    starter_codes: Optional[List[ProblemStarterCodeIn]] = None
 
 class ProblemOut(BaseModel):
     id: int
     title: str
     difficulty: str
     external_link: Optional[str]
+    description: Optional[str] = None
     tags: List[TagOut]
+    test_cases: List[ProblemTestCaseOut] = []
+    starter_codes: List[ProblemStarterCodeOut] = []
 
     class Config:
         orm_mode = True

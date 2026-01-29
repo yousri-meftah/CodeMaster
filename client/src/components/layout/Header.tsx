@@ -1,16 +1,22 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { problemsAPI } from "@/services/api";
 import ThemeToggle from "@/components/ThemeToggle";
 import UserMenu from "@/components/UserMenu";
 import MobileMenu from "@/components/layout/MobileMenu";
 import { Button } from "@/components/ui/button";
-import { Code } from "lucide-react";
+import { Code, Flame } from "lucide-react";
 
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [location] = useLocation();
   const { user } = useAuth();
+  const { data: dailyProblem } = useQuery({
+    queryKey: ["daily-problem"],
+    queryFn: () => problemsAPI.getDailyProblem(),
+  });
 
   const navLinks = [
     { name: "Home", path: "/" },
@@ -57,6 +63,13 @@ const Header = () => {
           {/* User Controls */}
           <div className="flex items-center space-x-4">
             <ThemeToggle />
+
+            <Link href={dailyProblem ? `/problems/${dailyProblem.id}` : "/problems"}>
+              <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <span className="hidden sm:inline">Daily</span>
+              </Button>
+            </Link>
 
             {user ? (
               <UserMenu user={user} />

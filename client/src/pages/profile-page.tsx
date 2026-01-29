@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { activityAPI } from "@/services/api";
 import { UserSolution } from "@shared/schema";
 import { 
   Card, 
@@ -27,6 +28,11 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, ExternalLink, PenSquare, Settings, Code, Calendar } from "lucide-react";
 import { Link } from "wouter";
 
+type ActivityDay = {
+  date: string;
+  count: number;
+};
+
 const ProfilePage = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("solved");
@@ -42,6 +48,12 @@ const ProfilePage = () => {
   // Fetch user's solutions
   const { data: solutions, isLoading: solutionsLoading } = useQuery<UserSolution[]>({
     queryKey: ["/user/solutions"],
+    enabled: !!user,
+  });
+
+  const { data: activityData } = useQuery<ActivityDay[]>({
+    queryKey: ["activity"],
+    queryFn: () => activityAPI.getActivity(),
     enabled: !!user,
   });
 
@@ -89,6 +101,29 @@ const ProfilePage = () => {
       month: "long",
       day: "numeric"
     });
+  };
+
+  const activityMap = new Map<string, number>();
+  (activityData || []).forEach((day) => {
+    activityMap.set(day.date, day.count);
+  });
+
+  const today = new Date();
+  const endDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const startDate = new Date(endDate);
+  startDate.setUTCDate(startDate.getUTCDate() - 27 * 7);
+
+  const days: Date[] = [];
+  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+    days.push(new Date(d));
+  }
+
+  const getIntensityClass = (count: number) => {
+    if (count >= 6) return "bg-emerald-600";
+    if (count >= 4) return "bg-emerald-500";
+    if (count >= 2) return "bg-emerald-400";
+    if (count >= 1) return "bg-emerald-300";
+    return "bg-muted";
   };
 
   return (
@@ -173,6 +208,42 @@ const ProfilePage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Activity Heatmap */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Activity</CardTitle>
+          <p className="text-sm text-muted-foreground">Recent activity in the last 28 weeks</p>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <div className="grid grid-flow-col gap-1" style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}>
+              {days.map((date) => {
+                const key = date.toISOString().slice(0, 10);
+                const count = activityMap.get(key) || 0;
+                return (
+                  <div
+                    key={key}
+                    title={`${key}: ${count} activity`}
+                    className={`h-4 w-4 rounded-sm ${getIntensityClass(count)}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Less</span>
+            <div className="flex items-center gap-1">
+              <div className="h-3 w-3 rounded-sm bg-muted" />
+              <div className="h-3 w-3 rounded-sm bg-emerald-300" />
+              <div className="h-3 w-3 rounded-sm bg-emerald-400" />
+              <div className="h-3 w-3 rounded-sm bg-emerald-500" />
+              <div className="h-3 w-3 rounded-sm bg-emerald-600" />
+            </div>
+            <span>More</span>
+          </div>
+        </CardContent>
+      </Card>
       
       {/* Profile Content Tabs */}
       <Card>

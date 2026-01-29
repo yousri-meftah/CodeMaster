@@ -10,8 +10,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   Problem,
   Article,
-  Roadmap,
-  InsertProblem,
   InsertArticle,
 } from "@shared/schema";
 import {
@@ -68,14 +66,12 @@ import {
   Search,
   Loader2
 } from "lucide-react";
-import { problemsAPI } from "@/services/api";
+import { problemsAPI, roadmapAPI, type RoadmapApi } from "@/services/api";
 
 const formSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
   difficulty: z.string().min(1, "Difficulty is required"),
-  categories: z.string().min(1, "Categories are required"),
-  successRate: z.number().optional(),
+  tags: z.string().optional(),
   externalUrl: z.string().optional(),
 });
 
@@ -91,8 +87,7 @@ const articleFormSchema = z.object({
 
 type InsertRoadmap = {
   title: string;
-  description: string;
-  steps: any[];
+  problem_ids_ordered: number[];
 };
 
 const AdminPage = () => {
@@ -103,7 +98,7 @@ const AdminPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isArticleDialogOpen, setIsArticleDialogOpen] = useState(false);
   const [isRoadmapDialogOpen, setIsRoadmapDialogOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Problem | Article | Roadmap | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Problem | Article | RoadmapApi | null>(null);
   const [selectedItemType, setSelectedItemType] = useState<'problem' | 'article' | 'roadmap' | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [deleteItemType, setDeleteItemType] = useState<'problem' | 'article' | 'roadmap' | null>(null);
@@ -111,7 +106,8 @@ const AdminPage = () => {
   
   // Problems data
   const { data: problems, isLoading: problemsLoading } = useQuery<Problem[]>({
-    queryKey: ["/problems"],
+    queryKey: ["problems"],
+    queryFn: () => problemsAPI.getAllProblems(),
   });
 
   // Articles data
@@ -120,8 +116,9 @@ const AdminPage = () => {
   });
 
   // Roadmaps data
-  const { data: roadmaps, isLoading: roadmapsLoading } = useQuery<Roadmap[]>({
-    queryKey: ["/roadmaps"],
+  const { data: roadmaps, isLoading: roadmapsLoading } = useQuery<RoadmapApi[]>({
+    queryKey: ["roadmaps"],
+    queryFn: () => roadmapAPI.getAllRoadmaps(),
   });
 
   // Users data (simplified)
@@ -135,10 +132,8 @@ const AdminPage = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
-      description: "",
       difficulty: "easy",
-      categories: "",
-      successRate: 0,
+      tags: "",
       externalUrl: "",
     },
   });
@@ -160,8 +155,7 @@ const AdminPage = () => {
   // Roadmap form schema
   const roadmapFormSchema = z.object({
     title: z.string().min(3, "Title must be at least 3 characters"),
-    description: z.string().min(10, "Description must be at least 10 characters"),
-    steps: z.string().min(10, "Steps must be at least 10 characters"),
+    problemIds: z.string().min(1, "Problem IDs are required"),
   });
 
   // Roadmap form
@@ -169,20 +163,14 @@ const AdminPage = () => {
     resolver: zodResolver(roadmapFormSchema),
     defaultValues: {
       title: "",
-      description: "",
-      steps: "[]",
+      problemIds: "",
     },
   });
 
   // Create problem mutation
   const createProblemMutation = useMutation({
-  mutationFn: async (data: {
-    title: string;
-    difficulty: string;
-    external_link: string;
-    tag_ids: number[];
-  }) => {
-    return problemsAPI.createProblem(data); // ✅ Axios returns parsed data
+  mutationFn: async (data: { title: string; difficulty: string; externalUrl?: string; tagNames?: string[] }) => {
+    return problemsAPI.createProblem(data);
   },
   onSuccess: () => {
     queryClient.invalidateQueries({ queryKey: ["problems"] }); // ✅ must match your list
@@ -206,12 +194,11 @@ const AdminPage = () => {
 
   // Update problem mutation
   const updateProblemMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertProblem> }) => {
-      const res = await apiRequest("PUT", `/problems/${id}`, data);
-      return res.json();
+    mutationFn: async ({ id, data }: { id: number; data: { title: string; difficulty: string; externalUrl?: string; tagNames?: string[] } }) => {
+      return problemsAPI.updateProblem(id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/problems"] });
+      queryClient.invalidateQueries({ queryKey: ["problems"] });
       toast({
         title: "Problem updated",
         description: "The problem has been updated successfully.",
@@ -233,10 +220,10 @@ const AdminPage = () => {
   // Delete problem mutation
   const deleteProblemMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/problems/${id}`);
+      return problemsAPI.deleteProblem(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/problems"] });
+      queryClient.invalidateQueries({ queryKey: ["problems"] });
       toast({
         title: "Problem deleted",
         description: "The problem has been deleted successfully.",
@@ -333,11 +320,11 @@ const AdminPage = () => {
   // Create roadmap mutation
   const createRoadmapMutation = useMutation({
     mutationFn: async (data: InsertRoadmap) => {
-      const res = await apiRequest("POST", "/roadmaps", data);
+      const res = await apiRequest("POST", "/roadmap", data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/roadmaps"] });
+      queryClient.invalidateQueries({ queryKey: ["roadmaps"] });
       toast({
         title: "Roadmap created",
         description: "The roadmap has been created successfully.",
@@ -359,11 +346,11 @@ const AdminPage = () => {
   // Update roadmap mutation
   const updateRoadmapMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertRoadmap> }) => {
-      const res = await apiRequest("PUT", `/roadmaps/${id}`, data);
+      const res = await apiRequest("PUT", `/roadmap/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/roadmaps"] });
+      queryClient.invalidateQueries({ queryKey: ["roadmaps"] });
       toast({
         title: "Roadmap updated",
         description: "The roadmap has been updated successfully.",
@@ -385,10 +372,10 @@ const AdminPage = () => {
   // Delete roadmap mutation
   const deleteRoadmapMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/roadmaps/${id}`);
+      return apiRequest("DELETE", `/roadmap/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/roadmaps"] });
+      queryClient.invalidateQueries({ queryKey: ["roadmaps"] });
       toast({
         title: "Roadmap deleted",
         description: "The roadmap has been deleted successfully.",
@@ -407,10 +394,15 @@ const AdminPage = () => {
   });
 
   const onSubmitProblem = (values: z.infer<typeof formSchema>) => {
-    // Convert comma-separated categories to array
+    const tagNames = values.tags
+      ? values.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+      : [];
+
     const problemData = {
-      ...values,
-      categories: values.categories.split(",").map(cat => cat.trim())
+      title: values.title,
+      difficulty: values.difficulty,
+      externalUrl: values.externalUrl,
+      tagNames,
     };
     
     if (selectedItem && selectedItemType === 'problem') {
@@ -419,7 +411,7 @@ const AdminPage = () => {
         data: problemData 
       });
     } else {
-      createProblemMutation.mutate(problemData as InsertProblem);
+      createProblemMutation.mutate(problemData);
     }
   };
 
@@ -441,30 +433,32 @@ const AdminPage = () => {
   };
 
   const onSubmitRoadmap = (values: z.infer<typeof roadmapFormSchema>) => {
-    try {
-      // Parse the steps JSON string into actual array
-      const stepsArray = JSON.parse(values.steps);
-      
-      const roadmapData = {
-        title: values.title,
-        description: values.description,
-        steps: stepsArray
-      };
-      
-      if (selectedItem && selectedItemType === 'roadmap') {
-        updateRoadmapMutation.mutate({ 
-          id: selectedItem.id, 
-          data: roadmapData
-        });
-      } else {
-        createRoadmapMutation.mutate(roadmapData as InsertRoadmap);
-      }
-    } catch (error) {
+    const problem_ids_ordered = values.problemIds
+      .split(",")
+      .map((id) => Number(id.trim()))
+      .filter((id) => !Number.isNaN(id));
+
+    if (!problem_ids_ordered.length) {
       toast({
-        title: "Invalid JSON format",
-        description: "Please ensure the steps are in valid JSON format",
+        title: "Invalid Problem IDs",
+        description: "Please provide a comma-separated list of problem IDs.",
         variant: "destructive",
       });
+      return;
+    }
+
+    const roadmapData = {
+      title: values.title,
+      problem_ids_ordered,
+    };
+    
+    if (selectedItem && selectedItemType === 'roadmap') {
+      updateRoadmapMutation.mutate({ 
+        id: selectedItem.id, 
+        data: roadmapData
+      });
+    } else {
+      createRoadmapMutation.mutate(roadmapData);
     }
   };
 
@@ -473,11 +467,9 @@ const AdminPage = () => {
     setSelectedItemType('problem');
     form.reset({
       title: problem.title,
-      description: problem.description,
       difficulty: problem.difficulty,
-      categories: problem.categories?.join(", ") || "",
-      successRate: problem.successRate || 0,
-      externalUrl: problem.externalUrl || "",
+      tags: problem.tags?.join(", ") || "",
+      externalUrl: problem.external_link || "",
     });
     setIsAddDialogOpen(true);
   };
@@ -497,13 +489,12 @@ const AdminPage = () => {
     setIsArticleDialogOpen(true);
   };
 
-  const handleEditRoadmap = (roadmap: Roadmap) => {
+  const handleEditRoadmap = (roadmap: RoadmapApi) => {
     setSelectedItem(roadmap);
     setSelectedItemType('roadmap');
     roadmapForm.reset({
       title: roadmap.title,
-      description: roadmap.description,
-      steps: JSON.stringify(roadmap.steps, null, 2),
+      problemIds: roadmap.problem_ids_ordered.join(", "),
     });
     setIsRoadmapDialogOpen(true);
   };
@@ -530,8 +521,7 @@ const AdminPage = () => {
   const filteredProblems = problems
     ? problems.filter((problem) =>
         problem.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        problem.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        problem.categories?.some(cat => cat.toLowerCase().includes(searchTerm.toLowerCase()))
+        problem.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : [];
 
@@ -545,8 +535,7 @@ const AdminPage = () => {
 
   const filteredRoadmaps = roadmaps
     ? roadmaps.filter((roadmap) =>
-        roadmap.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        roadmap.description.toLowerCase().includes(searchTerm.toLowerCase())
+        roadmap.title.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : [];
 
@@ -582,7 +571,7 @@ const AdminPage = () => {
               </h3>
               <p className="text-2xl font-bold">{problems?.length || 0}</p>
               <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                {problems?.filter(p => new Date(p.createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
+                {problems?.filter(p => p.createdAt && new Date(p.createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
               </p>
             </div>
             
@@ -592,7 +581,7 @@ const AdminPage = () => {
               </h3>
               <p className="text-2xl font-bold">{articles?.length || 0}</p>
               <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                {articles?.filter(a => new Date(a.createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
+                {articles?.filter(a => a.createdAt && new Date(a.createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
               </p>
             </div>
             
@@ -612,7 +601,7 @@ const AdminPage = () => {
               </h3>
               <p className="text-2xl font-bold">{roadmaps?.length || 0}</p>
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                {roadmaps?.filter(r => new Date(r.createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
+                {roadmaps?.filter(r => (r as any).createdAt && new Date((r as any).createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
               </p>
             </div>
           </div>
@@ -651,23 +640,6 @@ const AdminPage = () => {
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Description</FormLabel>
-                            <FormControl>
-                              <Textarea 
-                                placeholder="Problem description with examples"
-                                className="min-h-[100px]" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
@@ -689,32 +661,13 @@ const AdminPage = () => {
                             </FormItem>
                           )}
                         />
-                        <FormField
-                          control={form.control}
-                          name="successRate"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Success Rate (%)</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  type="number" 
-                                  min="0" 
-                                  max="100" 
-                                  {...field} 
-                                  onChange={(e) => field.onChange(Number(e.target.value) || 0)}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
                       </div>
                       <FormField
                         control={form.control}
-                        name="categories"
+                        name="tags"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Categories</FormLabel>
+                            <FormLabel>Tags</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="e.g. arrays, dynamic-programming" 
@@ -722,7 +675,7 @@ const AdminPage = () => {
                               />
                             </FormControl>
                             <FormDescription>
-                              Separate multiple categories with commas
+                              Separate multiple tags with commas
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -941,49 +894,18 @@ const AdminPage = () => {
                       />
                       <FormField
                         control={roadmapForm.control}
-                        name="description"
+                        name="problemIds"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Description</FormLabel>
+                            <FormLabel>Problem IDs (comma-separated)</FormLabel>
                             <FormControl>
-                              <Textarea 
-                                placeholder="Brief description of this learning path"
-                                className="min-h-[80px]" 
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={roadmapForm.control}
-                        name="steps"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Steps (JSON Format)</FormLabel>
-                            <FormControl>
-                              <Textarea 
-                                placeholder='[
-  {
-    "name": "HTML & CSS Fundamentals",
-    "description": "Master the basics of web layout and styling",
-    "resources": ["MDN Web Docs", "CSS Tricks", "FreeCodeCamp"],
-    "skills": ["HTML5", "CSS3", "Responsive Design"]
-  },
-  {
-    "name": "JavaScript Core Concepts",
-    "description": "Build a strong foundation in JavaScript",
-    "resources": ["Eloquent JavaScript", "JavaScript.info", "MDN JavaScript Guide"],
-    "skills": ["ES6+", "DOM Manipulation", "Async/Await"]
-  }
-]'
-                                className="min-h-[250px] font-mono text-sm" 
+                              <Input 
+                                placeholder="e.g. 1, 4, 7, 12"
                                 {...field} 
                               />
                             </FormControl>
                             <FormDescription>
-                              Enter steps as a JSON array with name, description, resources and skills
+                              Ordered list of problem IDs for this roadmap
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -1060,8 +982,7 @@ const AdminPage = () => {
                           <th className="px-4 py-3 text-left font-medium">ID</th>
                           <th className="px-4 py-3 text-left font-medium">Problem Name</th>
                           <th className="px-4 py-3 text-left font-medium">Difficulty</th>
-                          <th className="px-4 py-3 text-left font-medium">Category</th>
-                          <th className="px-4 py-3 text-left font-medium">Success Rate</th>
+                          <th className="px-4 py-3 text-left font-medium">Tags</th>
                           <th className="px-4 py-3 text-right font-medium">Actions</th>
                         </tr>
                       </thead>
@@ -1080,17 +1001,16 @@ const AdminPage = () => {
                               </Badge>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {problem.categories?.slice(0, 2).map((cat, i) => (
+                              {problem.tags?.slice(0, 2).map((tag, i) => (
                                 <span key={i}>
                                   {i > 0 && ", "}
-                                  {cat.split("-")
+                                  {tag.split("-")
                                     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                                     .join(" ")}
                                 </span>
                               ))}
-                              {problem.categories && problem.categories.length > 2 && ", ..."}
+                              {problem.tags && problem.tags.length > 2 && ", ..."}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap">{problem.successRate || 0}%</td>
                             <td className="px-4 py-3 whitespace-nowrap text-right">
                               <Button 
                                 variant="ghost" 
@@ -1245,7 +1165,7 @@ const AdminPage = () => {
                         <tr>
                           <th className="px-4 py-3 text-left font-medium">ID</th>
                           <th className="px-4 py-3 text-left font-medium">Title</th>
-                          <th className="px-4 py-3 text-left font-medium">Steps</th>
+                          <th className="px-4 py-3 text-left font-medium">Problems</th>
                           <th className="px-4 py-3 text-left font-medium">Date</th>
                           <th className="px-4 py-3 text-right font-medium">Actions</th>
                         </tr>
@@ -1256,10 +1176,10 @@ const AdminPage = () => {
                             <td className="px-4 py-3 whitespace-nowrap">{roadmap.id}</td>
                             <td className="px-4 py-3 whitespace-nowrap font-medium">{roadmap.title}</td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {Array.isArray(roadmap.steps) ? roadmap.steps.length : 0} steps
+                              {roadmap.problem_ids_ordered?.length || 0} problems
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {new Date(roadmap.createdAt).toLocaleDateString()}
+                              {(roadmap as any).createdAt ? new Date((roadmap as any).createdAt).toLocaleDateString() : "—"}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-right">
                               <Button 
