@@ -65,3 +65,4 @@ Planned steps
 - 2026-01-29: Added token-expiry logout flow (401 → logout + toast).
 - 2026-01-29: Added daily problem icon in navbar and activity heatmap on profile.
 - 2026-01-29: Added placeholder progress endpoints and user solutions endpoint to unblock frontend.
+- 2026-01-29: Added constraints field and seed script/migration for 10 test cases per problem.

@@ -41,6 +41,7 @@ def serialize_problem(problem: Problem) -> ProblemOut:
         difficulty=problem.difficulty,
         external_link=problem.external_link,
         description=problem.description,
+        constraints=problem.constraints,
         tags=problem.tags,
         test_cases=test_cases,
         starter_codes=starter_codes,
@@ -78,6 +79,7 @@ def create_problem(data: ProblemIn, db: Session = Depends(get_db), user=Depends(
             difficulty=data.difficulty,
             external_link=data.external_link,
             description=data.description,
+            constraints=data.constraints,
             tags=tags
         )
         db.add(problem)
@@ -160,6 +162,7 @@ def update_problem(problem_id: int, data: ProblemIn, db: Session = Depends(get_d
         problem.difficulty = data.difficulty
         problem.external_link = data.external_link
         problem.description = data.description
+        problem.constraints = data.constraints
         problem.tags = db.query(Tag).filter(Tag.id.in_(data.tag_ids)).all()
         if data.test_cases is not None:
             db.query(ProblemTestCase).filter(ProblemTestCase.problem_id == problem_id).delete()

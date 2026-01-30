@@ -9,6 +9,7 @@ class Problem(Base):
     difficulty = Column(String, nullable=False)
     external_link = Column(String, nullable=True)
     description = Column(Text, nullable=True)
+    constraints = Column(Text, nullable=True)
 
     problem_tags = relationship("ProblemTag", back_populates="problem", cascade="all, delete-orphan")
     tags = relationship("Tag", secondary="problem_tags", viewonly=True)

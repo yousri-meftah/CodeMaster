@@ -60,6 +60,7 @@ class ProblemIn(BaseModel):
     difficulty: str
     external_link: Optional[str]
     description: Optional[str] = None
+    constraints: Optional[str] = None
     tag_ids: List[int]
     test_cases: Optional[List[ProblemTestCaseIn]] = None
     starter_codes: Optional[List[ProblemStarterCodeIn]] = None
@@ -70,6 +71,7 @@ class ProblemOut(BaseModel):
     difficulty: str
     external_link: Optional[str]
     description: Optional[str] = None
+    constraints: Optional[str] = None
     tags: List[TagOut]
     test_cases: List[ProblemTestCaseOut] = []
     starter_codes: List[ProblemStarterCodeOut] = []

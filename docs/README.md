@@ -142,6 +142,7 @@ These matter for the upcoming work:
 - 2026-01-29: Added a data migration to seed descriptions/test cases for existing problems and insert a simple “Sum of Two Numbers” problem if missing.
 - 2026-01-29: Added daily problem endpoint and starter code per language; frontend shows daily problem and loads starter code.
 - 2026-01-29: Added daily problem icon in header and user activity heatmap.
+- 2026-01-29: Added constraints field and seeded 10 test cases per problem for submission readiness.
 
 ## What this means for next steps
 The frontend is feature‑complete in UI, but backend coverage is partial. The next development work will likely involve:
