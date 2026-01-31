@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Loader2, Search, Calendar, Clock, ChevronRight } from "lucide-react";
+import { articlesAPI } from "@/services/api";
 
 const ExplorePage = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -25,24 +26,20 @@ const ExplorePage = () => {
 
   // Fetch articles
   const { data: articles, isLoading } = useQuery<Article[]>({
-    queryKey: ["/articles", categoryFilter],
-    queryFn: async ({ queryKey }) => {
-      const [_, category] = queryKey;
-      const url = `/articles${category ? `?category=${category}` : ""}`;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch articles");
-      return res.json();
-    },
+    queryKey: ["articles", categoryFilter],
+    queryFn: () => articlesAPI.getAllArticles(categoryFilter || undefined),
   });
 
+  const articlesToShow = articles || [];
+
   // Get unique categories
-  const categories = articles
-    ? [...new Set(articles.flatMap((a) => a.categories || []))]
+  const categories = articlesToShow
+    ? [...new Set(articlesToShow.flatMap((a) => a.categories || []))]
     : [];
 
   // Filter articles based on search term
-  const filteredArticles = articles
-    ? articles.filter((article) =>
+  const filteredArticles = articlesToShow
+    ? articlesToShow.filter((article) =>
         article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         article.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         article.content.toLowerCase().includes(searchTerm.toLowerCase())
@@ -103,7 +100,7 @@ const ExplorePage = () => {
         </div>
       ) : filteredArticles.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">No articles found matching your criteria.</p>
+          <p className="text-muted-foreground">No articles yet. Ask an admin to add some.</p>
           <Button variant="link" onClick={() => {
             setSearchTerm("");
             setCategoryFilter("");
@@ -140,7 +137,7 @@ const ExplorePage = () => {
                   {article.summary}
                 </p>
                 <Link
-                  href={`/explore/${article.id}`}
+                  href={`/articles/${article.id}`}
                   className="text-primary hover:underline mt-auto inline-flex items-center"
                 >
                   Read Article <ChevronRight className="h-4 w-4 ml-1" />

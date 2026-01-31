@@ -66,3 +66,6 @@ Planned steps
 - 2026-01-29: Added daily problem icon in navbar and activity heatmap on profile.
 - 2026-01-29: Added placeholder progress endpoints and user solutions endpoint to unblock frontend.
 - 2026-01-29: Added constraints field and seed script/migration for 10 test cases per problem.
+- 2026-01-29: Explore and Article pages now rely on backend content only.
+- 2026-01-29: Updated CodeEditor visuals for a unique style.
+- 2026-01-29: Added language‑based syntax highlighting and explore article detail fallback content.

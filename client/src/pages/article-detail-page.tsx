@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { articlesAPI } from "@/services/api";
 
 const ArticleDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,9 +31,11 @@ const ArticleDetailPage = () => {
   
   // Fetch article details
   const { data: article, isLoading } = useQuery<Article>({
-    queryKey: [`/articles/${articleId}`],
+    queryKey: ["article", articleId],
+    queryFn: () => articlesAPI.getArticleById(articleId),
     enabled: !isNaN(articleId),
   });
+  const articleToShow = article;
 
   const formatDate = (dateString: string | Date) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -74,7 +77,7 @@ const ArticleDetailPage = () => {
     );
   }
 
-  if (!article) {
+  if (!articleToShow) {
     return (
       <div className="text-center py-20">
         <h2 className="text-2xl font-bold mb-4">Article Not Found</h2>
@@ -93,21 +96,21 @@ const ArticleDetailPage = () => {
       {/* Article Header */}
       <div>
         <div className="flex items-center space-x-2 mb-4">
-          {article.categories?.map((category) => (
+          {articleToShow.categories?.map((category) => (
             <Badge key={category} variant="outline" className="capitalize">
               {category.replace(/-/g, ' ')}
             </Badge>
           ))}
           <span className="text-muted-foreground text-sm">
-            {formatDate(article.createdAt)}
+            {formatDate(articleToShow.createdAt)}
           </span>
         </div>
         
-        <h1 className="text-4xl font-bold mb-4">{article.title}</h1>
+        <h1 className="text-4xl font-bold mb-4">{articleToShow.title}</h1>
         
-        {article.summary && (
+        {articleToShow.summary && (
           <p className="text-lg text-muted-foreground mb-6">
-            {article.summary}
+            {articleToShow.summary}
           </p>
         )}
         
@@ -115,11 +118,11 @@ const ArticleDetailPage = () => {
           <div className="flex items-center space-x-4">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
               <span className="font-medium text-primary">
-                {article.author ? article.author.substring(0, 2).toUpperCase() : "A"}
+                {articleToShow.author ? articleToShow.author.substring(0, 2).toUpperCase() : "A"}
               </span>
             </div>
             <div>
-              <p className="font-medium">{article.author || "Anonymous"}</p>
+              <p className="font-medium">{articleToShow.author || "Anonymous"}</p>
               <p className="text-sm text-muted-foreground">Author</p>
             </div>
           </div>
@@ -159,15 +162,15 @@ const ArticleDetailPage = () => {
       
       {/* Article Content */}
       <div className="prose dark:prose-invert max-w-none">
-        <div dangerouslySetInnerHTML={{ __html: article.content || "" }} />
+        <div dangerouslySetInnerHTML={{ __html: articleToShow.content || "" }} />
       </div>
       
       {/* Article Categories - Showing as tags */}
-      {article.categories && article.categories.length > 0 && (
+      {articleToShow.categories && articleToShow.categories.length > 0 && (
         <div className="pt-4">
           <h3 className="text-lg font-semibold mb-2">Related Topics</h3>
           <div className="flex flex-wrap gap-2">
-            {article.categories.map((category: string) => (
+            {articleToShow.categories.map((category: string) => (
               <Badge key={category} variant="secondary">
                 {category.replace(/-/g, ' ')}
               </Badge>

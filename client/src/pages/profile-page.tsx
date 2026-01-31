@@ -217,7 +217,7 @@ const ProfilePage = () => {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <div className="grid grid-flow-col gap-1" style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}>
+            <div className="inline-grid grid-flow-col gap-[3px] bg-muted/30 p-2 rounded-lg" style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}>
               {days.map((date) => {
                 const key = date.toISOString().slice(0, 10);
                 const count = activityMap.get(key) || 0;
@@ -225,7 +225,7 @@ const ProfilePage = () => {
                   <div
                     key={key}
                     title={`${key}: ${count} activity`}
-                    className={`h-4 w-4 rounded-sm ${getIntensityClass(count)}`}
+                    className={`h-3 w-3 rounded-[3px] ${getIntensityClass(count)}`}
                   />
                 );
               })}

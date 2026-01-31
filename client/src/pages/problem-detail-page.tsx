@@ -307,6 +307,7 @@ const ProblemDetailPage = () => {
                   }
                 }}
                 height="520px"
+                language={language as "javascript" | "python" | "java" | "cpp"}
               />
             </CardContent>
           </Card>

@@ -120,3 +120,27 @@ class RoadmapOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+# ---------- ARTICLE ----------
+class ArticleIn(BaseModel):
+    title: str
+    content: str
+    summary: Optional[str] = None
+    image_url: Optional[str] = None
+    author: Optional[str] = None
+    read_time: Optional[int] = None
+    categories: Optional[List[str]] = None
+
+class ArticleOut(BaseModel):
+    id: int
+    title: str
+    content: str
+    summary: Optional[str] = None
+    image_url: Optional[str] = None
+    author: Optional[str] = None
+    read_time: Optional[int] = None
+    categories: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True

@@ -66,7 +66,7 @@ import {
   Search,
   Loader2
 } from "lucide-react";
-import { problemsAPI, roadmapAPI, type RoadmapApi } from "@/services/api";
+import { problemsAPI, roadmapAPI, tagsAPI, type RoadmapApi, type TagApi } from "@/services/api";
 
 const formSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -98,11 +98,14 @@ const AdminPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isArticleDialogOpen, setIsArticleDialogOpen] = useState(false);
   const [isRoadmapDialogOpen, setIsRoadmapDialogOpen] = useState(false);
+  const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Problem | Article | RoadmapApi | null>(null);
   const [selectedItemType, setSelectedItemType] = useState<'problem' | 'article' | 'roadmap' | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [deleteItemType, setDeleteItemType] = useState<'problem' | 'article' | 'roadmap' | null>(null);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [newTagName, setNewTagName] = useState("");
   
   // Problems data
   const { data: problems, isLoading: problemsLoading } = useQuery<Problem[]>({
@@ -119,6 +122,11 @@ const AdminPage = () => {
   const { data: roadmaps, isLoading: roadmapsLoading } = useQuery<RoadmapApi[]>({
     queryKey: ["roadmaps"],
     queryFn: () => roadmapAPI.getAllRoadmaps(),
+  });
+
+  const { data: tags, isLoading: tagsLoading } = useQuery<TagApi[]>({
+    queryKey: ["tags"],
+    queryFn: () => tagsAPI.getAllTags(),
   });
 
   // Users data (simplified)
@@ -394,9 +402,13 @@ const AdminPage = () => {
   });
 
   const onSubmitProblem = (values: z.infer<typeof formSchema>) => {
-    const tagNames = values.tags
+    const tagsFromInput = values.tags
       ? values.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
       : [];
+    const tagsFromSelection = (tags || [])
+      .filter((tag) => selectedTagIds.includes(tag.id))
+      .map((tag) => tag.name);
+    const tagNames = Array.from(new Set([...tagsFromInput, ...tagsFromSelection]));
 
     const problemData = {
       title: values.title,
@@ -465,6 +477,11 @@ const AdminPage = () => {
   const handleEditProblem = (problem: Problem) => {
     setSelectedItem(problem);
     setSelectedItemType('problem');
+    const tagNameSet = new Set((problem.tags || []).map((tag) => tag.toLowerCase()));
+    const matchingTagIds = (tags || [])
+      .filter((tag) => tagNameSet.has(tag.name.toLowerCase()))
+      .map((tag) => tag.id);
+    setSelectedTagIds(matchingTagIds);
     form.reset({
       title: problem.title,
       difficulty: problem.difficulty,
@@ -681,6 +698,45 @@ const AdminPage = () => {
                           </FormItem>
                         )}
                       />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Select Tags</span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setIsTagDialogOpen(true)}
+                          >
+                            Add Tag
+                          </Button>
+                        </div>
+                        {tagsLoading ? (
+                          <div className="text-sm text-muted-foreground">Loading tags…</div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {(tags || []).map((tag) => {
+                              const selected = selectedTagIds.includes(tag.id);
+                              return (
+                                <Button
+                                  type="button"
+                                  key={tag.id}
+                                  size="sm"
+                                  variant={selected ? "default" : "outline"}
+                                  onClick={() => {
+                                    setSelectedTagIds((prev) =>
+                                      prev.includes(tag.id)
+                                        ? prev.filter((id) => id !== tag.id)
+                                        : [...prev, tag.id]
+                                    );
+                                  }}
+                                >
+                                  {tag.name}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                       <FormField
                         control={form.control}
                         name="externalUrl"
@@ -710,6 +766,36 @@ const AdminPage = () => {
                       </DialogFooter>
                     </form>
                   </Form>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={isTagDialogOpen} onOpenChange={setIsTagDialogOpen}>
+                <DialogContent className="sm:max-w-[420px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Tag</DialogTitle>
+                    <DialogDescription>Create a new tag for problems.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="e.g. arrays"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                    />
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        onClick={async () => {
+                          if (!newTagName.trim()) return;
+                          await tagsAPI.createTag(newTagName.trim());
+                          setNewTagName("");
+                          setIsTagDialogOpen(false);
+                          queryClient.invalidateQueries({ queryKey: ["tags"] });
+                        }}
+                      >
+                        Create Tag
+                      </Button>
+                    </DialogFooter>
+                  </div>
                 </DialogContent>
               </Dialog>
 

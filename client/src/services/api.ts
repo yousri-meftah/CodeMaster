@@ -20,7 +20,7 @@ export interface RegisterData extends LoginData {
   name?: string;
 }
 
-type TagApi = {
+export type TagApi = {
   id: number;
   name: string;
 };
@@ -255,6 +255,19 @@ export const roadmapAPI = {
 export const activityAPI = {
   getActivity: async () => {
     const response = await api.get("/user/activity");
+    return response.data;
+  },
+};
+
+export const articlesAPI = {
+  getAllArticles: async (category?: string) => {
+    const response = await api.get("/articles", {
+      params: category ? { category } : undefined,
+    });
+    return response.data;
+  },
+  getArticleById: async (id: number) => {
+    const response = await api.get(`/articles/${id}`);
     return response.data;
   },
 };

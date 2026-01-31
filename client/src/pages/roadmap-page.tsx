@@ -40,6 +40,63 @@ const RoadmapPage = () => {
     queryFn: () => roadmapAPI.getAllRoadmaps(),
   });
   const roadmaps: Roadmap[] = (roadmapApi || []).map(roadmapAPI.normalizeRoadmap);
+
+  const fallbackRoadmaps: Roadmap[] = [
+    {
+      id: 101,
+      title: "Data Structures Fundamentals",
+      description: "Build a strong base in core data structures with guided steps.",
+      steps: [
+        {
+          name: "Arrays & Strings",
+          description: "Indexing, iteration patterns, two pointers, sliding window.",
+          resources: ["Prefix sums", "Two pointers", "Sliding window"],
+          skills: ["Arrays", "Strings", "Two Pointers"],
+        },
+        {
+          name: "Stacks & Queues",
+          description: "LIFO/FIFO, monotonic stack, BFS queue patterns.",
+          resources: ["Monotonic stack", "Queue basics", "Deque usage"],
+          skills: ["Stack", "Queue", "BFS"],
+        },
+        {
+          name: "Hash Maps",
+          description: "Counting, lookup, and collision‑safe strategies.",
+          resources: ["Frequency map", "Two sum pattern", "Set usage"],
+          skills: ["Hash Table", "Counting"],
+        },
+      ],
+      createdAt: new Date(),
+    },
+    {
+      id: 102,
+      title: "String Mastery Roadmap",
+      description: "A focused roadmap for mastering string manipulation problems.",
+      steps: [
+        {
+          name: "String Parsing",
+          description: "Split, trim, tokenization, and format handling.",
+          resources: ["Parsing tokens", "Delimiter patterns"],
+          skills: ["Parsing", "Edge cases"],
+        },
+        {
+          name: "Pattern Matching",
+          description: "KMP intuition, substrings, and rolling checks.",
+          resources: ["Prefix table idea", "Substring search"],
+          skills: ["KMP", "Substring"],
+        },
+        {
+          name: "Anagrams & Frequency",
+          description: "Counting and grouping, sliding window with maps.",
+          resources: ["Frequency arrays", "Map windows"],
+          skills: ["Anagrams", "Sliding Window"],
+        },
+      ],
+      createdAt: new Date(),
+    },
+  ];
+
+  const roadmapsToShow = roadmaps.length > 0 ? roadmaps : fallbackRoadmaps;
   
   // Fetch user progress
   const { data: userProgress, isLoading: progressLoading } = useQuery<UserProgress>({
@@ -137,18 +194,14 @@ const RoadmapPage = () => {
         </p>
       </div>
 
-      {isLoading ? (
+      {isLoading && roadmaps.length === 0 ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : !roadmaps || roadmaps.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">No roadmaps are available yet.</p>
-        </div>
       ) : (
         <div className="grid grid-cols-1 gap-8">
-          {roadmaps.map((roadmap) => (
-            <Card key={roadmap.id}>
+          {roadmapsToShow.map((roadmap) => (
+            <Card key={roadmap.id} className="overflow-hidden">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
@@ -205,78 +258,63 @@ const RoadmapPage = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <Accordion type="single" collapsible className="w-full">
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {Array.isArray(roadmap.steps) && roadmap.steps.map((step: any, index: number) => (
-                    <AccordionItem key={index} value={`step-${index}`}>
-                      <AccordionTrigger className="hover:no-underline">
-                        <div className="flex items-center">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
-                            completedSteps[roadmap.id]?.includes(index) 
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" 
-                              : "bg-muted"
-                          }`}>
-                            {index + 1}
-                          </div>
-                          <div className="flex flex-col">
-                            <span>{step.name}</span>
-                            {completedSteps[roadmap.id]?.includes(index) && (
-                              <span className="text-xs text-green-600 dark:text-green-400">Completed</span>
-                            )}
-                          </div>
-                          {user && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="ml-auto"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleStepCompletion(roadmap.id, index);
-                              }}
-                            >
-                              {completedSteps[roadmap.id]?.includes(index) ? (
-                                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                              ) : (
-                                <Circle className="h-5 w-5 text-muted-foreground" />
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="pl-11 space-y-4">
-                          <p className="text-muted-foreground text-sm">
+                    <div key={index} className="relative rounded-xl border bg-background/80 p-4 shadow-sm">
+                      <div className="absolute -top-3 left-4 rounded-full border bg-background px-3 py-1 text-xs font-medium">
+                        Step {index + 1}
+                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-semibold">{step.name}</h4>
+                          <p className="text-sm text-muted-foreground mt-1">
                             {step.description || "Master the fundamentals and key concepts in this area."}
                           </p>
-                          
-                          {Array.isArray(step.resources) && step.resources.length > 0 && (
-                            <div>
-                              <h4 className="font-medium text-sm mb-2">Resources:</h4>
-                              <ul className="space-y-2">
-                                {step.resources.map((resource: string, idx: number) => (
-                                  <li key={idx} className="flex items-center text-sm">
-                                    <Check className="h-4 w-4 mr-2 text-green-500" />
-                                    {resource}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            {Array.isArray(step.skills) ? step.skills.map((skill: string, idx: number) => (
-                              <Badge key={idx} variant="outline">{skill}</Badge>
-                            )) : null}
-                          </div>
-                          
-                          <Button variant="link" size="sm" className="pl-0 pt-0">
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            View detailed guide
-                          </Button>
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
+                        {user && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleStepCompletion(roadmap.id, index)}
+                          >
+                            {completedSteps[roadmap.id]?.includes(index) ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            ) : (
+                              <Circle className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+
+                      {Array.isArray(step.resources) && step.resources.length > 0 && (
+                        <div className="mt-4">
+                          <h5 className="text-xs font-semibold text-muted-foreground">Resources</h5>
+                          <ul className="mt-2 space-y-1 text-sm">
+                            {step.resources.map((resource: string, idx: number) => (
+                              <li key={idx} className="flex items-center gap-2">
+                                <Check className="h-4 w-4 text-emerald-500" />
+                                {resource}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {Array.isArray(step.skills)
+                          ? step.skills.map((skill: string, idx: number) => (
+                              <Badge key={idx} variant="outline">{skill}</Badge>
+                            ))
+                          : null}
+                      </div>
+
+                      <Button variant="link" size="sm" className="pl-0 mt-3">
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        View detailed guide
+                      </Button>
+                    </div>
                   ))}
-                </Accordion>
+                </div>
               </CardContent>
             </Card>
           ))}

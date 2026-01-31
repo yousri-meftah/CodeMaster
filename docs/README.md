@@ -35,9 +35,11 @@ Routes are defined in `client/src/App.tsx`.
 - `/problems/:id` Problem detail
   - Code editor (CodeMirror) + save solution
 - `/explore` Articles list
+- Explore lists articles from the backend; empty state prompts admin to add content.
+- Article detail page renders only backend content (no static fallback).
 - `/articles/:id` Article detail (bookmark/copy/share UI)
 - `/roadmap` Roadmaps
-  - Accordion steps, progress tracking UI
+  - Visual card‑based roadmap with resources and skills
 - `/profile` Profile (protected)
   - Shows stats and tabs for solved/saved/favorites
 - `/admin` Admin dashboard (protected)
@@ -74,6 +76,7 @@ Problems
 - `DELETE /problem/{problem_id}` — delete (auth required)
 - Responses now include `description` and sample `test_cases` (hidden test cases are not returned).
 - Responses now include `starter_codes` for each supported language.
+- Responses include `constraints` (if present).
 
 Saved solutions
 - `POST /saved-solution/` — save or update solution (auth required)
@@ -95,6 +98,7 @@ Core tables (SQLAlchemy models in `backend/Backend/src/app/models/`):
 - `problems` — title, difficulty, external_link
 - `problem_test_cases` — problem_id, input_text, output_text, is_sample, order
 - `problem_starter_code` — problem_id, language, code
+- `problems.constraints` — constraints text for runtime/limits documentation
 - `tags` and `problem_tags` (many‑to‑many)
 - `roadmaps` and `roadmap_problems` (ordered links)
 - `saved_solutions` — user_id, problem_id, code, timestamp
@@ -143,6 +147,9 @@ These matter for the upcoming work:
 - 2026-01-29: Added daily problem endpoint and starter code per language; frontend shows daily problem and loads starter code.
 - 2026-01-29: Added daily problem icon in header and user activity heatmap.
 - 2026-01-29: Added constraints field and seeded 10 test cases per problem for submission readiness.
+- 2026-01-29: Explore and Article pages now rely on backend articles (no static fallback).
+- 2026-01-29: Updated editor styling to a unique CodePractice look.
+- 2026-01-29: Added syntax highlighting by language and improved Explore article detail.
 
 ## What this means for next steps
 The frontend is feature‑complete in UI, but backend coverage is partial. The next development work will likely involve:
