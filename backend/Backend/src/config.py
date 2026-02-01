@@ -43,11 +43,19 @@ class RedisConfig(BaseConfig):
     REDIS_URL : str
 
 
+class Judge0Config(BaseConfig):
+    JUDGE0_URL: str = "http://localhost:2358"
+    JUDGE0_API_KEY: str = ""
+    JUDGE0_API_KEY_HEADER: str = "X-Auth-Token"
+    JUDGE0_TIMEOUT_SECONDS: int = 15
+
+
 class Settings(
     PostgresConfig,
     JwtConfig,
     MailConfig,
     RedisConfig,
+    Judge0Config,
 ):
     pass
 

@@ -37,8 +37,8 @@ const CodeEditor = ({ value, onChange, height = "400px", language = "javascript"
   };
 
   return (
-    <div className="border rounded-lg overflow-hidden shadow-sm bg-gradient-to-br from-slate-950/90 via-slate-900/80 to-slate-950/90">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-slate-900/70">
+    <div className="border rounded-lg overflow-hidden shadow-sm bg-background h-full">
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
         <div className="flex items-center gap-2 text-xs text-slate-300">
           <span className="inline-flex items-center gap-2 rounded-full bg-slate-800 px-3 py-1">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />

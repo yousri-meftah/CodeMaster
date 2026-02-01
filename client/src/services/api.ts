@@ -52,6 +52,28 @@ type ProblemStarterCodeApi = {
   code: string;
 };
 
+export type SubmissionCase = {
+  id?: number;
+  is_sample: boolean;
+  input_text?: string | null;
+  output_text?: string | null;
+  stdout?: string | null;
+  stderr?: string | null;
+  compile_output?: string | null;
+  status?: string | null;
+  time?: string | null;
+  memory?: number | null;
+  passed: boolean;
+};
+
+export type SubmissionResult = {
+  verdict: string;
+  passed: number;
+  total: number;
+  cases: SubmissionCase[];
+  hidden?: { passed: number; total: number } | null;
+};
+
 const normalizeProblem = (problem: ProblemApi): Problem => ({
   ...problem,
   tags: (problem.tags ?? []).map((tag) => tag.name),
@@ -228,6 +250,17 @@ export const problemsAPI = {
   getDailyProblem: async (): Promise<Problem> => {
     const response = await api.get<ProblemApi>("/problem/daily");
     return normalizeProblem(response.data);
+  },
+};
+
+export const submissionsAPI = {
+  run: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
+    const response = await api.post("/submission/run", payload);
+    return response.data;
+  },
+  submit: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
+    const response = await api.post("/submission/submit", payload);
+    return response.data;
   },
 };
 

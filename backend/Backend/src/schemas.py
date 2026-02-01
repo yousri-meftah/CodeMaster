@@ -144,3 +144,31 @@ class ArticleOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+# ---------- SUBMISSION ----------
+class SubmissionRequest(BaseModel):
+    problem_id: int
+    language: str
+    code: str
+
+
+class SubmissionCaseResult(BaseModel):
+    id: Optional[int]
+    is_sample: bool
+    input_text: Optional[str] = None
+    output_text: Optional[str] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    compile_output: Optional[str] = None
+    status: Optional[str] = None
+    time: Optional[str] = None
+    memory: Optional[int] = None
+    passed: bool
+
+
+class SubmissionSummary(BaseModel):
+    verdict: str
+    passed: int
+    total: int
+    cases: List[SubmissionCaseResult]
+    hidden: Optional[dict] = None
