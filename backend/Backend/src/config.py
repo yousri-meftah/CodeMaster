@@ -43,11 +43,9 @@ class RedisConfig(BaseConfig):
     REDIS_URL : str
 
 
-class Judge0Config(BaseConfig):
-    JUDGE0_URL: str = "http://localhost:2358"
-    JUDGE0_API_KEY: str = ""
-    JUDGE0_API_KEY_HEADER: str = "X-Auth-Token"
-    JUDGE0_TIMEOUT_SECONDS: int = 15
+class PistonConfig(BaseConfig):
+    PISTON_URL: str = "https://piston.yousri-meftah.com/api/v2"
+    PISTON_TIMEOUT_SECONDS: int = 15
 
 
 class Settings(
@@ -55,7 +53,7 @@ class Settings(
     JwtConfig,
     MailConfig,
     RedisConfig,
-    Judge0Config,
+    PistonConfig,
 ):
     pass
 

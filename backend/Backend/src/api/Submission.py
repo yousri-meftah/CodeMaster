@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.controllers.auth import get_current_user
 from app.models import Problem
-from app.services.judge0 import execute_test_cases, summarize_results
+from app.services.piston import execute_test_cases, summarize_results
 from database import get_db
 from schemas import SubmissionRequest, SubmissionSummary
 
