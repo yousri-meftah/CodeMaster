@@ -32,7 +32,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-background shadow-sm">
+    <header className="sticky top-0 z-50 border-b bg-gradient-to-r from-primary/10 via-background to-accent/10 backdrop-blur">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
@@ -49,10 +49,10 @@ const Header = () => {
               <Link
                 key={link.path}
                 href={link.path}
-                className={`font-medium py-2 ${
+                className={`font-medium py-2 transition-colors ${
                   isActiveLink(link.path)
                     ? "text-primary"
-                    : "hover:text-primary"
+                    : "text-foreground/70 hover:text-primary"
                 }`}
               >
                 {link.name}

@@ -52,12 +52,12 @@ const ProblemDetailPage = () => {
   const [executionMode, setExecutionMode] = useState<"run" | "submit" | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [leftWidth, setLeftWidth] = useState(50);
+  const [leftOutputHeight, setLeftOutputHeight] = useState(50);
   const [isLargeLayout, setIsLargeLayout] = useState(false);
   const [activeCaseIndex, setActiveCaseIndex] = useState(0);
   const splitRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<"vertical" | "left-horizontal" | null>(null);
-  const [leftOutputHeight, setLeftOutputHeight] = useState(35);
 
   const { data: problem, isLoading: problemLoading } = useQuery<ProblemDetail>({
     queryKey: ["problem", problemId],
@@ -336,9 +336,10 @@ const ProblemDetailPage = () => {
         : "bg-slate-400";
 
   return (
-    <div className="space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-sky-50/40">
+      <div className="space-y-4 px-4 py-4 lg:px-6 lg:py-6">
       {/* Header */}
-      <Card className="border-2">
+      <Card className="border-2 bg-card">
         <CardContent className="p-4 lg:p-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div className="space-y-3 flex-1">
@@ -381,12 +382,12 @@ const ProblemDetailPage = () => {
       {/* Main Split View */}
       <div
         ref={splitRef}
-        className="flex flex-col lg:flex-row gap-0 rounded-lg border-2 overflow-hidden bg-card lg:h-[calc(100vh-140px)] lg:min-h-[760px]"
+        className="flex flex-col lg:flex-row gap-0 rounded-xl border-2 overflow-hidden bg-card lg:h-[calc(100vh-140px)] lg:min-h-[760px]"
       >
         {/* Left Panel - Problem Description */}
         <div
           ref={leftPanelRef}
-          className="flex flex-col min-h-[600px] lg:min-h-0 h-full"
+          className="flex flex-col min-h-[600px] lg:min-h-0 h-full bg-card"
           style={{ width: isLargeLayout ? `${leftWidth}%` : "100%" }}
         >
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
@@ -626,7 +627,7 @@ const ProblemDetailPage = () => {
 
         {/* Right Panel - Code Editor */}
         <div 
-          className="flex flex-col min-h-[650px] lg:min-h-0 h-full"
+          className="flex flex-col min-h-[650px] lg:min-h-0 h-full bg-card"
           style={{ width: isLargeLayout ? `${100 - leftWidth}%` : "100%" }}
         >
           <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-4 py-2">
@@ -691,6 +692,7 @@ const ProblemDetailPage = () => {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };
