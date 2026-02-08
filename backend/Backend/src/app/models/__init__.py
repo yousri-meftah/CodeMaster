@@ -14,3 +14,4 @@ from .ProblemTag import ProblemTag
 from .ProblemTestCase import ProblemTestCase
 from .ProblemStarterCode import ProblemStarterCode
 from .article import Article
+from .Submission import Submission

@@ -145,6 +145,26 @@ class ArticleOut(BaseModel):
     class Config:
         orm_mode = True
 
+# ---------- EXECUTION ----------
+class ExecutionRequest(BaseModel):
+    code: str
+    input: Optional[str] = None
+    language: str = "algo"
+
+class ExecutionResult(BaseModel):
+    stdout: str
+    stderr: Optional[str] = None
+    status: str = "ok"
+
+class SubmissionOut(BaseModel):
+    id: int
+    status: Optional[str] = None
+    output_text: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
 # ---------- SUBMISSION ----------
 class SubmissionRequest(BaseModel):
     problem_id: int

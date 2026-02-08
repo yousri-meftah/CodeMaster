@@ -48,12 +48,17 @@ class PistonConfig(BaseConfig):
     PISTON_TIMEOUT_SECONDS: int = 15
 
 
+class AlgoConfig(BaseConfig):
+    ALGO_EXECUTE_URL: str = "http://localhost:8000/execute"
+
+
 class Settings(
     PostgresConfig,
     JwtConfig,
     MailConfig,
     RedisConfig,
     PistonConfig,
+    AlgoConfig,
 ):
     pass
 

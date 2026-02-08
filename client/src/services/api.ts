@@ -253,17 +253,6 @@ export const problemsAPI = {
   },
 };
 
-export const submissionsAPI = {
-  run: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
-    const response = await api.post("/submission/run", payload);
-    return response.data;
-  },
-  submit: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
-    const response = await api.post("/submission/submit", payload);
-    return response.data;
-  },
-};
-
 // Roadmap related API calls
 export const roadmapAPI = {
   getAllRoadmaps: async (): Promise<RoadmapApi[]> => {

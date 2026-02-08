@@ -687,8 +687,8 @@ const ProblemDetailPage = () => {
                 }
               }}
               height="100%"
-              language={language as "javascript" | "python" | "java" | "cpp"}
-            />
+                language={language as "javascript" | "python" | "java" | "cpp" | "algo"}
+              />
           </div>
         </div>
       </div>

@@ -12,7 +12,7 @@ interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
   height?: string;
-  language?: "javascript" | "python" | "java" | "cpp";
+  language?: "javascript" | "python" | "java" | "cpp" | "algo";
 }
 
 const CodeEditor = ({ value, onChange, height = "400px", language = "javascript" }: CodeEditorProps) => {
@@ -31,6 +31,8 @@ const CodeEditor = ({ value, onChange, height = "400px", language = "javascript"
         return java();
       case "cpp":
         return cpp();
+      case "algo":
+        return javascript();
       default:
         return javascript();
     }

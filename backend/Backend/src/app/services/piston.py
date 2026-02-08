@@ -101,6 +101,19 @@ def execute_piston(
     source_code: str,
     stdin: str,
 ) -> Dict:
+    if _normalize(language) == "algo":
+        payload = {"code": source_code, "input": stdin, "language": "algo"}
+        resp = requests.post(settings.ALGO_EXECUTE_URL, json=payload, timeout=settings.PISTON_TIMEOUT_SECONDS)
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as exc:
+            raise RuntimeError(f"Algo /execute error: {resp.status_code} {resp.text}") from exc
+        data = resp.json() if resp.content else {}
+        stdout = data.get("stdout", data.get("output", ""))
+        stderr = data.get("stderr")
+        code = data.get("code", 0)
+        return {"run": {"stdout": stdout, "stderr": stderr, "code": code, "signal": None}}
+
     lang, version = get_runtime(language)
     payload = {
         "language": lang,
