@@ -78,11 +78,42 @@ const ProblemDetailPage = () => {
     }
   }, [savedSolution]);
 
+  const detectLanguageMismatch = (lang: string, source: string) => {
+    const normalized = source.trim().toLowerCase();
+    if (!normalized) return null;
+    const looksLikeJs =
+      /\bfunction\b/.test(normalized) ||
+      /\bconsole\.log\b/.test(normalized) ||
+      /\b(let|const|var)\b/.test(normalized) ||
+      /=>/.test(normalized);
+    const looksLikePy =
+      /\bdef\b/.test(normalized) ||
+      /\bprint\(/.test(normalized) ||
+      /\bimport\b/.test(normalized);
+
+    if (lang === "python" && looksLikeJs) {
+      return "Your code looks like JavaScript, but Python is selected.";
+    }
+    if (lang === "javascript" && looksLikePy) {
+      return "Your code looks like Python, but JavaScript is selected.";
+    }
+    return null;
+  };
+
   const handleRun = async () => {
     if (!code.trim()) {
       toast({
         title: "Empty solution",
         description: "Please write your solution before running.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const mismatch = detectLanguageMismatch(language, code);
+    if (mismatch) {
+      toast({
+        title: "Language mismatch",
+        description: `${mismatch} Please switch the language and try again.`,
         variant: "destructive",
       });
       return;
@@ -93,7 +124,7 @@ const ProblemDetailPage = () => {
       setExecutionResult(null); // Clear previous results
       const result = await submissionsAPI.run({
         problem_id: problemId,
-        language,
+        language: language.toLowerCase(),
         code,
       });
       setExecutionResult(result);
@@ -131,13 +162,22 @@ const ProblemDetailPage = () => {
       });
       return;
     }
+    const mismatch = detectLanguageMismatch(language, code);
+    if (mismatch) {
+      toast({
+        title: "Language mismatch",
+        description: `${mismatch} Please switch the language and try again.`,
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       setIsExecuting(true);
       setExecutionMode("submit");
       setExecutionResult(null); // Clear previous results
       const result = await submissionsAPI.submit({
         problem_id: problemId,
-        language,
+        language: language.toLowerCase(),
         code,
       });
       setExecutionResult(result);
@@ -645,6 +685,7 @@ const ProblemDetailPage = () => {
                   <SelectItem value="python">Python</SelectItem>
                   <SelectItem value="java">Java</SelectItem>
                   <SelectItem value="cpp">C++</SelectItem>
+                  <SelectItem value="algo">Algo</SelectItem>
                 </SelectContent>
               </Select>
               <Button 

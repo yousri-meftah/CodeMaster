@@ -113,10 +113,26 @@ const ProfilePage = () => {
   const startDate = new Date(endDate);
   startDate.setUTCDate(startDate.getUTCDate() - 27 * 7);
 
-  const days: Date[] = [];
-  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
-    days.push(new Date(d));
+  const alignedStart = new Date(startDate);
+  alignedStart.setUTCDate(alignedStart.getUTCDate() - alignedStart.getUTCDay());
+
+  const weeks: Date[][] = [];
+  for (let w = 0; w < 28; w += 1) {
+    const week: Date[] = [];
+    for (let d = 0; d < 7; d += 1) {
+      const date = new Date(alignedStart);
+      date.setUTCDate(alignedStart.getUTCDate() + w * 7 + d);
+      week.push(date);
+    }
+    weeks.push(week);
   }
+
+  const monthLabels = weeks.map((week) => {
+    const firstOfMonth = week.find((date) => date.getUTCDate() === 1);
+    return firstOfMonth
+      ? firstOfMonth.toLocaleDateString("en-US", { month: "short" })
+      : "";
+  });
 
   const getIntensityClass = (count: number) => {
     if (count >= 6) return "bg-emerald-600";
@@ -209,7 +225,7 @@ const ProfilePage = () => {
         </Card>
       </div>
 
-      {/* Activity Heatmap */}
+      {/* Activity Heatmap (inside stats card) */}
       <Card>
         <CardHeader>
           <CardTitle>Activity</CardTitle>
@@ -217,30 +233,54 @@ const ProfilePage = () => {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <div className="inline-grid grid-flow-col gap-[3px] bg-muted/30 p-2 rounded-lg" style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}>
-              {days.map((date) => {
-                const key = date.toISOString().slice(0, 10);
-                const count = activityMap.get(key) || 0;
-                return (
-                  <div
-                    key={key}
-                    title={`${key}: ${count} activity`}
-                    className={`h-3 w-3 rounded-[3px] ${getIntensityClass(count)}`}
-                  />
-                );
-              })}
+            <div className="inline-flex flex-col items-center gap-3">
+              <div className="flex gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {monthLabels.map((label, idx) => (
+                  <div key={`${label}-${idx}`} className="w-4 text-center">
+                    {label}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="grid grid-rows-7 gap-1 text-[10px] text-muted-foreground pt-[2px]">
+                  <span />
+                  <span>Mon</span>
+                  <span />
+                  <span>Wed</span>
+                  <span />
+                  <span>Fri</span>
+                  <span />
+                </div>
+                <div className="flex gap-1">
+                  {weeks.map((week, weekIdx) => (
+                    <div key={`week-${weekIdx}`} className="grid grid-rows-7 gap-1">
+                      {week.map((date) => {
+                        const key = date.toISOString().slice(0, 10);
+                        const count = activityMap.get(key) || 0;
+                        return (
+                          <div
+                            key={key}
+                            title={`${key}: ${count} activity`}
+                            className={`h-3.5 w-3.5 rounded-[4px] ${getIntensityClass(count)}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>Less</span>
+                <div className="flex items-center gap-1">
+                  <div className="h-3 w-3 rounded-sm bg-muted" />
+                  <div className="h-3 w-3 rounded-sm bg-emerald-300" />
+                  <div className="h-3 w-3 rounded-sm bg-emerald-400" />
+                  <div className="h-3 w-3 rounded-sm bg-emerald-500" />
+                  <div className="h-3 w-3 rounded-sm bg-emerald-600" />
+                </div>
+                <span>More</span>
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Less</span>
-            <div className="flex items-center gap-1">
-              <div className="h-3 w-3 rounded-sm bg-muted" />
-              <div className="h-3 w-3 rounded-sm bg-emerald-300" />
-              <div className="h-3 w-3 rounded-sm bg-emerald-400" />
-              <div className="h-3 w-3 rounded-sm bg-emerald-500" />
-              <div className="h-3 w-3 rounded-sm bg-emerald-600" />
-            </div>
-            <span>More</span>
           </div>
         </CardContent>
       </Card>

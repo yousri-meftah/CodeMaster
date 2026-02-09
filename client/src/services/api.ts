@@ -294,6 +294,17 @@ export const articlesAPI = {
   },
 };
 
+export const submissionsAPI = {
+  run: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
+    const response = await api.post("/submission/run", payload);
+    return response.data;
+  },
+  submit: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
+    const response = await api.post("/submission/submit", payload);
+    return response.data;
+  },
+};
+
 // User progress related API calls
 // export const progressAPI = {
 //   getUserProgress: async () => {

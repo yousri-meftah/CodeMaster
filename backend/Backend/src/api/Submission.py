@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -41,6 +43,25 @@ def _serialize_cases(results, include_io: bool, only_sample: bool):
 
 
 @router.post("/run", response_model=SubmissionSummary)
+def _normalize_language(value: str) -> str:
+    return (value or "").strip().lower()
+
+
+def _guard_language_mismatch(language: str, code: str) -> None:
+    js_like = re.search(r"\bfunction\b|=>|\bconsole\.log\b|\b(let|const|var)\b", code, re.IGNORECASE)
+    py_like = re.search(r"\bdef\b|\bprint\(|\bimport\b", code, re.IGNORECASE)
+    if language == "python" and js_like:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your code looks like JavaScript, but Python is selected.",
+        )
+    if language == "javascript" and py_like:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your code looks like Python, but JavaScript is selected.",
+        )
+
+
 def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
     try:
         problem = _load_problem(db, payload.problem_id)
@@ -48,8 +69,10 @@ def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
         if not sample_cases:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No sample test cases available")
 
+        language = _normalize_language(payload.language)
+        _guard_language_mismatch(language, payload.code)
         results = execute_test_cases(
-            language=payload.language,
+            language=language,
             source_code=payload.code,
             test_cases=[
                 {
@@ -91,8 +114,10 @@ def submit_submission(
         if not all_cases:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No test cases available")
 
+        language = _normalize_language(payload.language)
+        _guard_language_mismatch(language, payload.code)
         results = execute_test_cases(
-            language=payload.language,
+            language=language,
             source_code=payload.code,
             test_cases=[
                 {
