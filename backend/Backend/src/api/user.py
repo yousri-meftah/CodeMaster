@@ -7,7 +7,7 @@ from app.schemas.user import UserCreate, UserUpdate, UserResponse, Users
 from app.controllers.user import register_user, get_user, update_user, delete_user, get_users
 from app.controllers.auth import get_current_user
 from sqlalchemy import func
-from app.models import SavedSolution
+from app.models import Problem, Submission
 from app.exceptions.base import NotFoundException
 
 router = APIRouter()
@@ -28,26 +28,46 @@ def get_user_solutions(db: Session = Depends(get_db), user=Depends(get_current_u
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
+        latest_per_problem = (
+            db.query(
+                Submission.problem_id.label("problem_id"),
+                func.max(Submission.created_at).label("max_created_at"),
+            )
+            .filter(
+                Submission.user_id == user.id,
+                Submission.is_submit.is_(True),
+                Submission.verdict == "AC",
+            )
+            .group_by(Submission.problem_id)
+            .subquery()
+        )
+
         solutions = (
-            db.query(SavedSolution)
-            .filter(SavedSolution.user_id == user.id)
-            .order_by(SavedSolution.timestamp.desc())
+            db.query(Submission, Problem)
+            .join(
+                latest_per_problem,
+                (Submission.problem_id == latest_per_problem.c.problem_id)
+                & (Submission.created_at == latest_per_problem.c.max_created_at),
+            )
+            .join(Problem, Problem.id == Submission.problem_id)
+            .order_by(Submission.created_at.desc())
             .all()
         )
 
         return [
             {
-                "id": solution.id,
-                "userId": solution.user_id,
-                "problemId": solution.problem_id,
-                "code": solution.code,
-                "language": "javascript",
-                "solved": False,
+                "id": submission.id,
+                "userId": submission.user_id,
+                "problemId": submission.problem_id,
+                "code": submission.code,
+                "language": submission.language,
+                "solved": True,
                 "favorite": False,
-                "createdAt": solution.timestamp,
-                "updatedAt": solution.timestamp,
+                "createdAt": submission.created_at,
+                "updatedAt": submission.created_at,
+                "difficulty": problem.difficulty,
             }
-            for solution in solutions
+            for submission, problem in solutions
         ]
     except HTTPException:
         raise
@@ -64,10 +84,14 @@ def get_user_activity(db: Session = Depends(get_db), user=Depends(get_current_us
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
         rows = (
-            db.query(func.date(SavedSolution.timestamp).label("day"), func.count(SavedSolution.id))
-            .filter(SavedSolution.user_id == user.id)
-            .group_by(func.date(SavedSolution.timestamp))
-            .order_by(func.date(SavedSolution.timestamp))
+            db.query(func.date(Submission.created_at).label("day"), func.count(Submission.id))
+            .filter(
+                Submission.user_id == user.id,
+                Submission.is_submit.is_(True),
+                Submission.verdict == "AC",
+            )
+            .group_by(func.date(Submission.created_at))
+            .order_by(func.date(Submission.created_at))
             .all()
         )
 

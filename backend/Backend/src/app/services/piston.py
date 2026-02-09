@@ -102,7 +102,7 @@ def execute_piston(
     stdin: str,
 ) -> Dict:
     if _normalize(language) == "algo":
-        payload = {"code": source_code, "input": stdin, "language": "algo"}
+        payload = {"algo_code": source_code, "input": stdin, "language": "algo"}
         resp = requests.post(settings.ALGO_EXECUTE_URL, json=payload, timeout=settings.PISTON_TIMEOUT_SECONDS)
         try:
             resp.raise_for_status()

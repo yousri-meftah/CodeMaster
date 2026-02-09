@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Problem } from "@shared/schema";
@@ -17,7 +17,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Search, Tag, Code, ExternalLink } from "lucide-react";
-import { problemsAPI } from "@/services/api";
+import { problemsAPI, tagsAPI, userAPI } from "@/services/api";
+import { useAuth } from "@/hooks/use-auth";
 
 const ProblemsPage = () => {
   const [location, setLocation] = useLocation();
@@ -31,30 +32,52 @@ const ProblemsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState(initialCategory);
   const [difficultyFilter, setDifficultyFilter] = useState(initialDifficulty);
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+  const { user } = useAuth();
 
   // Fetch problems using the API service
-  const { data: problems, isLoading } = useQuery<Problem[]>({
-    queryKey: ["problems", searchTerm, difficultyFilter],
+  const { data: problemsPage, isLoading } = useQuery<{ items: Problem[]; total: number; page: number; page_size: number }>({
+    queryKey: ["problems", searchTerm, difficultyFilter, page],
     queryFn: () =>
       problemsAPI.getAllProblems({
         name: searchTerm || undefined,
         difficulty: difficultyFilter && difficultyFilter !== "all-difficulties" 
           ? difficultyFilter 
           : undefined,
+        page,
+        page_size: pageSize,
       }),
   });
 
-  // Get unique categories
-  const categories = problems
-    ? Array.from(new Set(problems.flatMap((p) => p.tags || [])))
-    : [];
+  const { data: tags } = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => tagsAPI.getAllTags(),
+  });
+
+  const { data: solvedSolutions } = useQuery({
+    queryKey: ["solutions"],
+    queryFn: () => userAPI.getSolutions(),
+    enabled: !!user,
+  });
+
+  const solvedSet = useMemo(() => {
+    const set = new Set<number>();
+    (solvedSolutions || []).forEach((solution: any) => {
+      if (solution?.problemId) set.add(solution.problemId);
+    });
+    return set;
+  }, [solvedSolutions]);
 
   // Filter problems based on search term
-   const filteredProblems = problems || [];
+  const filteredProblems = problemsPage?.items || [];
+  const totalPages = problemsPage ? Math.ceil(problemsPage.total / pageSize) : 0;
+  const categories = (tags || []).map((tag: any) => tag.name);
 
   // Handle filter changes
   const handleCategoryChange = (value: string) => {
     setCategoryFilter(value);
+    setPage(1);
     const params = new URLSearchParams();
     if (value) params.append("category", value);
     if (difficultyFilter) params.append("difficulty", difficultyFilter);
@@ -64,6 +87,7 @@ const ProblemsPage = () => {
 
   const handleDifficultyChange = (value: string) => {
     setDifficultyFilter(value);
+    setPage(1);
     const params = new URLSearchParams();
     if (categoryFilter) params.append("category", categoryFilter);
     if (value) params.append("difficulty", value);
@@ -73,6 +97,7 @@ const ProblemsPage = () => {
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
+    setPage(1);
   };
 
   function getDifficultyColor(difficulty: string) {
@@ -165,6 +190,11 @@ const ProblemsPage = () => {
                       <span className={`inline-block px-2 py-1 rounded text-xs font-medium mr-2 ${getDifficultyColor(problem.difficulty)}`}>
                         {problem.difficulty.charAt(0).toUpperCase() + problem.difficulty.slice(1)}
                       </span>
+                      {solvedSet.has(problem.id) && (
+                        <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                          Solved
+                        </span>
+                      )}
                       
                     </div>
                     <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
@@ -209,6 +239,31 @@ const ProblemsPage = () => {
               </Card>
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          >
+            Next
+          </Button>
         </div>
       )}
     </div>

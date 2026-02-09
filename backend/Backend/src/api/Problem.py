@@ -35,6 +35,17 @@ def serialize_problem(problem: Problem) -> ProblemOut:
             )
             for sc in problem.starter_codes
         ]
+    # Ensure algo starter code exists for existing problems
+    default_codes = {sc.language.lower(): sc.code for sc in default_starter_codes(problem.title)}
+    existing_langs = {sc.language.lower() for sc in starter_codes}
+    if "algo" not in existing_langs and "algo" in default_codes:
+        starter_codes.append(
+            ProblemStarterCodeOut(
+                id=0,
+                language="algo",
+                code=default_codes["algo"],
+            )
+        )
     return ProblemOut(
         id=problem.id,
         title=problem.title,
@@ -55,6 +66,7 @@ def default_starter_codes(title: str) -> List[ProblemStarterCodeIn]:
             ProblemStarterCodeIn(language="python", code="def solve(data: str):\n    a, b = map(int, data.strip().split())\n    print(a + b)\n\nif __name__ == '__main__':\n    import sys\n    solve(sys.stdin.read())\n"),
             ProblemStarterCodeIn(language="java", code="import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        Scanner sc = new Scanner(System.in);\n        long a = sc.nextLong();\n        long b = sc.nextLong();\n        System.out.println(a + b);\n        sc.close();\n    }\n}\n"),
             ProblemStarterCodeIn(language="cpp", code="#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    long long a, b;\n    if (!(cin >> a >> b)) return 0;\n    cout << (a + b);\n    return 0;\n}\n"),
+            ProblemStarterCodeIn(language="algo", code="algorithme solve\n\nvariables\n    a : entier\n    b : entier\n\ndebut\n    lire(a)\n    lire(b)\n    ecrireln(a+b)\nfin\n"),
         ]
     if "valid parentheses" in title_lower:
         return [
@@ -62,12 +74,14 @@ def default_starter_codes(title: str) -> List[ProblemStarterCodeIn]:
             ProblemStarterCodeIn(language="python", code="def solve(data: str):\n    s = data.strip()\n    stack = []\n    pairs = {')': '(', ']': '[', '}': '{'}\n    for ch in s:\n        if ch in \"([{\":\n            stack.append(ch)\n        else:\n            if not stack or stack.pop() != pairs.get(ch):\n                print('false')\n                return\n    print('true' if not stack else 'false')\n\nif __name__ == '__main__':\n    import sys\n    solve(sys.stdin.read())\n"),
             ProblemStarterCodeIn(language="java", code="import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        String s = br.readLine();\n        if (s == null) return;\n        Deque<Character> stack = new ArrayDeque<>();\n        Map<Character, Character> pairs = Map.of(')', '(', ']', '[', '}', '{');\n        for (char ch : s.toCharArray()) {\n            if (ch == '(' || ch == '[' || ch == '{') {\n                stack.push(ch);\n            } else {\n                if (stack.isEmpty() || stack.pop() != pairs.get(ch)) {\n                    System.out.println(\"false\");\n                    return;\n                }\n            }\n        }\n        System.out.println(stack.isEmpty() ? \"true\" : \"false\");\n    }\n}\n"),
             ProblemStarterCodeIn(language="cpp", code="#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    string s;\n    if (!getline(cin, s)) return 0;\n    vector<char> st;\n    unordered_map<char, char> pairs{{')','('},{']','['},{'}','{'}};\n    for (char ch : s) {\n        if (ch == '(' || ch == '[' || ch == '{') st.push_back(ch);\n        else {\n            if (st.empty() || st.back() != pairs[ch]) {\n                cout << \"false\";\n                return 0;\n            }\n            st.pop_back();\n        }\n    }\n    cout << (st.empty() ? \"true\" : \"false\");\n    return 0;\n}\n"),
+            ProblemStarterCodeIn(language="algo", code="algorithme solve\n\nvariables\n    s : chaine\n    pile : tableau de caractere\n    i : entier\n\ndebut\n    lire(s)\n    // TODO: implement\n    ecrireln(\"false\")\nfin\n"),
         ]
     return [
         ProblemStarterCodeIn(language="javascript", code="function solve(input) {\n  // TODO: implement\n}\n\nsolve(require('fs').readFileSync(0, 'utf8'));\n"),
         ProblemStarterCodeIn(language="python", code="def solve(data: str):\n    # TODO: implement\n    pass\n\nif __name__ == '__main__':\n    import sys\n    solve(sys.stdin.read())\n"),
         ProblemStarterCodeIn(language="java", code="import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        // TODO: implement\n    }\n}\n"),
         ProblemStarterCodeIn(language="cpp", code="#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // TODO: implement\n    return 0;\n}\n"),
+        ProblemStarterCodeIn(language="algo", code="algorithme solve\n\nvariables\n    // TODO: declare variables\n\ndebut\n    // TODO: implement\nfin\n"),
     ]
 
 @router.post("/", response_model=ProblemOut)
@@ -110,11 +124,13 @@ def create_problem(data: ProblemIn, db: Session = Depends(get_db), user=Depends(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/", response_model=List[ProblemOut])
+@router.get("/", response_model=ProblemPageOut)
 def get_all_problems(
     db: Session = Depends(get_db),
     difficulty: Optional[str] = Query(None, description="Filter by difficulty"),
     name: Optional[str] = Query(None, description="Filter by problem name (partial match)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=100),
 ):
     try:
         query = db.query(Problem)
@@ -125,7 +141,19 @@ def get_all_problems(
         if name:
             query = query.filter(Problem.title.ilike(f"%{name}%"))
 
-        return [serialize_problem(problem) for problem in query.all()]
+        total = query.count()
+        items = (
+            query.order_by(Problem.id.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return {
+            "items": [serialize_problem(problem) for problem in items],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

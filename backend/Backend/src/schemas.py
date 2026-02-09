@@ -192,3 +192,24 @@ class SubmissionSummary(BaseModel):
     total: int
     cases: List[SubmissionCaseResult]
     hidden: Optional[dict] = None
+
+
+class SubmissionListItem(BaseModel):
+    id: int
+    problem_id: int
+    language: str
+    verdict: Optional[str] = None
+    passed: Optional[int] = None
+    total: Optional[int] = None
+    is_submit: bool
+    created_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+
+class ProblemPageOut(BaseModel):
+    items: List[ProblemOut]
+    total: int
+    page: int
+    page_size: int

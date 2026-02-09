@@ -108,7 +108,7 @@ const AdminPage = () => {
   const [newTagName, setNewTagName] = useState("");
   
   // Problems data
-  const { data: problems, isLoading: problemsLoading } = useQuery<Problem[]>({
+  const { data: problemsPage, isLoading: problemsLoading } = useQuery<{ items: Problem[]; total: number; page: number; page_size: number }>({
     queryKey: ["problems"],
     queryFn: () => problemsAPI.getAllProblems(),
   });
@@ -128,6 +128,8 @@ const AdminPage = () => {
     queryKey: ["tags"],
     queryFn: () => tagsAPI.getAllTags(),
   });
+
+  const problems = problemsPage?.items ?? [];
 
   // Users data (simplified)
   const { data: usersData, isLoading: usersLoading } = useQuery({

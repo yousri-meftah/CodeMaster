@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+:root {
     --background: 210 50% 98%;
     --foreground: 220 20% 12%;
 
@@ -65,6 +65,36 @@
     --ring: 190 95% 58%;
   }
 
+}
+
+.celebration-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  overflow: hidden;
+}
+
+.confetti {
+  position: absolute;
+  top: -10%;
+  width: 10px;
+  height: 18px;
+  border-radius: 3px;
+  animation: confetti-fall 2.2s ease-in-out forwards;
+}
+
+.confetti-a { left: 15%; background: #34d399; animation-delay: 0s; }
+.confetti-b { left: 30%; background: #38bdf8; animation-delay: 0.1s; }
+.confetti-c { left: 45%; background: #fbbf24; animation-delay: 0.2s; }
+.confetti-d { left: 60%; background: #f472b6; animation-delay: 0.05s; }
+.confetti-e { left: 75%; background: #a78bfa; animation-delay: 0.15s; }
+.confetti-f { left: 90%; background: #22c55e; animation-delay: 0.25s; }
+
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(120vh) rotate(240deg); opacity: 0; }
 }
 
 @layer base {

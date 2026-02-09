@@ -8,7 +8,7 @@ import { ExternalLink, ChevronRight, Code, BookOpen, Route } from "lucide-react"
 
 const HomePage = () => {
   // Fetch problem categories
-  const { data: problems } = useQuery<Problem[]>({
+  const { data: problemsPage } = useQuery<{ items: Problem[]; total: number; page: number; page_size: number }>({
     queryKey: ["problems"],
     queryFn: () => problemsAPI.getAllProblems(),
   });
@@ -24,11 +24,11 @@ const HomePage = () => {
   });
 
   // Extract categories from problems data
-  const categories = problems
-    ? [...new Set(problems.flatMap(problem => problem.tags || []))]
+  const categories = problemsPage?.items
+    ? [...new Set(problemsPage.items.flatMap(problem => problem.tags || []))]
           .slice(0, 4)
           .map(category => {
-            const categoryProblems = problems.filter(p => p.tags?.includes(category));
+            const categoryProblems = problemsPage.items.filter(p => p.tags?.includes(category));
             return {
               name: formatCategoryName(category),
               slug: category,

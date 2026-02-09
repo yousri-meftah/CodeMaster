@@ -1,35 +1,57 @@
 # 🧠 Personal Coding Platform
 
-This project is a full-stack coding practice platform designed to help users improve their problem-solving skills in a structured and personalized way.
+Full‑stack coding practice platform inspired by LeetCode, built for structured learning, submissions, and analytics.
 
-## 🖥️ Frontend
+## ✨ Core Features
+- Problem list with pagination, difficulty filters, tags, daily problem
+- Problem detail page with description, examples, constraints, starter code
+- Code execution (Piston) + Algo runner (custom `/execute`)
+- Run vs Submit flows with verdict + per‑case results
+- Submission history tab per problem
+- Activity heatmap + solved list derived from accepted submissions
+- Theme system + responsive UI
 
-The frontend interface was generated using **Replit** and offers a clean, interactive experience for users to:
+## 🖥️ Frontend (client/)
+React + Vite UI that includes:
+- Problems list + search + pagination
+- Problem detail with editor, run/submit, submissions tab
+- Profile with activity heatmap and solved list
+- Explore/Articles and Roadmap pages
 
-- Browse coding problems by difficulty or tags
-- Track their progress
-- View roadmaps and follow learning paths
-- Save and review their personal solutions
+Editor preferences:
+- Language preference saved in localStorage
+- Code saved per problem + language in localStorage
 
-## 🚀 Backend
+## 🚀 Backend (backend/Backend/)
+FastAPI + PostgreSQL + Alembic.
 
-The backend was built entirely by me using **FastAPI**, **PostgreSQL**, and **Alembic** for migrations. It includes a well-structured REST API to manage:
+Key modules:
+- `api/Problem.py` — problems + pagination + daily problem
+- `api/Submission.py` — run/submit + submission history
+- `api/user.py` — activity + solved problems
+- `api/Progress.py` — solved count + streak
+- `app/services/piston.py` — execution abstraction
 
-- Users, authentication, and admin roles
-- Coding problems with tagging and metadata
-- Roadmaps that guide users through topics
-- User-specific saved solutions
-- Commenting system
-- Problem tracking (favorites and done)
+## 🔌 Execution
+- Piston for standard languages (`PISTON_URL`)
+- Algo executor for custom language (`ALGO_EXECUTE_URL`)
 
-The backend is optimized for clean architecture, maintainability, and scalable integration with modern frontend tools.
+## 🧭 Important Endpoints (Backend)
+- `GET /problem` (paginated)
+- `GET /problem/{id}`
+- `GET /problem/daily`
+- `POST /submission/run`
+- `POST /submission/submit`
+- `GET /submission/problem/{problem_id}` (user history)
+- `GET /user/activity`
+- `GET /user/solutions`
+- `GET /progress`
 
-## 💡 About the Project
+## 🗂️ Documentation
+Project docs are kept in `/docs` but **ignored by git**.  
+Update and use them locally for AI handoff and architecture notes.
 
-This platform is inspired by educational platforms like LeetCode and NeetCode, but adds more flexibility for learning paths, personal code saving, and comment-based discussions.
-
-It is designed to be extensible — new features like code execution, leaderboards, or AI feedback can be integrated with minimal changes.
-
-## 🗂️ Database Schema
-
-![image](https://github.com/user-attachments/assets/d97ec13e-93b3-4c98-b588-0aab00e195c5)
+## 🛠️ Status
+- Submissions are stored only on submit (run is not persisted).
+- Activity + solved list are computed from accepted submissions.
+- Judge0 integration is planned next.

@@ -50,7 +50,10 @@ const ProblemDetailPage = () => {
   const [hasUserEdits, setHasUserEdits] = useState(false);
   const [executionResult, setExecutionResult] = useState<SubmissionResult | null>(null);
   const [executionMode, setExecutionMode] = useState<"run" | "submit" | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [lastSavedCode, setLastSavedCode] = useState("");
   const [leftWidth, setLeftWidth] = useState(50);
   const [leftOutputHeight, setLeftOutputHeight] = useState(50);
   const [isLargeLayout, setIsLargeLayout] = useState(false);
@@ -58,6 +61,7 @@ const ProblemDetailPage = () => {
   const splitRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<"vertical" | "left-horizontal" | null>(null);
+  const initializedKeysRef = useRef<Set<string>>(new Set());
 
   const { data: problem, isLoading: problemLoading } = useQuery<ProblemDetail>({
     queryKey: ["problem", problemId],
@@ -68,6 +72,26 @@ const ProblemDetailPage = () => {
   const { data: savedSolution } = useQuery({
     queryKey: ["solution", problemId],
     queryFn: () => problemsAPI.getSolutionByProblem(problemId),
+    enabled: !!user && !isNaN(problemId),
+  });
+
+  // Load preferred language
+  useEffect(() => {
+    if (Number.isNaN(problemId)) return;
+    const storedLang =
+      localStorage.getItem(`problem:${problemId}:preferredLanguage`) ||
+      localStorage.getItem("preferredLanguage");
+    if (storedLang && storedLang !== language) {
+      setLanguage(storedLang);
+    }
+  }, [problemId]);
+
+  const {
+    data: submissions,
+    refetch: refetchSubmissions,
+  } = useQuery({
+    queryKey: ["problem-submissions", problemId],
+    queryFn: () => submissionsAPI.getByProblem(problemId),
     enabled: !!user && !isNaN(problemId),
   });
 
@@ -129,6 +153,11 @@ const ProblemDetailPage = () => {
       });
       setExecutionResult(result);
       setActiveCaseIndex(0); // Reset to first test case
+      setShowCelebration(false);
+      setShowSuccessModal(false);
+      if (user) {
+        refetchSubmissions();
+      }
       toast({
         title: result.verdict === "AC" ? "All tests passed!" : "Run completed",
         description: `Verdict: ${result.verdict} (${result.passed}/${result.total} passed)`,
@@ -182,6 +211,10 @@ const ProblemDetailPage = () => {
       });
       setExecutionResult(result);
       setActiveCaseIndex(0); // Reset to first test case
+      if (result.verdict === "AC") {
+        setShowCelebration(true);
+        setShowSuccessModal(true);
+      }
       toast({
         title: result.verdict === "AC" ? "Accepted! 🎉" : "Submission completed",
         description: `Verdict: ${result.verdict} (${result.passed}/${result.total} passed)`,
@@ -213,19 +246,57 @@ const ProblemDetailPage = () => {
     return map;
   }, [problem?.starter_codes]);
 
-  // Handle starter code loading
+  const submissionStatus = useMemo(() => {
+    if (!submissions || submissions.length === 0) return "none";
+    const hasAccepted = submissions.some((s: any) => (s.verdict || "").toUpperCase() === "AC");
+    if (hasAccepted) return "solved";
+    return "tried";
+  }, [submissions]);
+
+  // Handle starter code + local storage per language
   useEffect(() => {
-    if (!problem) return;
-    if (savedSolution?.code) return;
+    if (!problem || Number.isNaN(problemId)) return;
+    const key = `problem:${problemId}:lang:${language.toLowerCase()}`;
+    if (initializedKeysRef.current.has(key)) return;
+    const stored = localStorage.getItem(key);
+    if (stored && stored !== code) {
+      setCode(stored);
+      setLastStarter(stored);
+      setHasUserEdits(true);
+      initializedKeysRef.current.add(key);
+      return;
+    }
+
+    if (savedSolution?.code && !stored) {
+      setCode(savedSolution.code);
+      setLastStarter(savedSolution.code);
+      setHasUserEdits(true);
+      localStorage.setItem(key, savedSolution.code);
+      initializedKeysRef.current.add(key);
+      return;
+    }
+
     const starter = starterCodeMap.get(language.toLowerCase()) ?? "";
     if (!starter) return;
-    const shouldReplace = !hasUserEdits || code.trim() === "" || code === lastStarter;
-    if (shouldReplace) {
-      setCode(starter);
-      setLastStarter(starter);
-      setHasUserEdits(false);
-    }
-  }, [problem, language, starterCodeMap, savedSolution, hasUserEdits, code, lastStarter]);
+    setCode(starter);
+    setLastStarter(starter);
+    setHasUserEdits(false);
+    localStorage.setItem(key, starter);
+    initializedKeysRef.current.add(key);
+  }, [problem, problemId, language, starterCodeMap, savedSolution, code]);
+
+  // Debounced localStorage save (protects against navigation before blur)
+  useEffect(() => {
+    if (Number.isNaN(problemId)) return;
+    const key = `problem:${problemId}:lang:${language.toLowerCase()}`;
+    const timeout = setTimeout(() => {
+      if (code !== lastSavedCode) {
+        localStorage.setItem(key, code ?? "");
+        setLastSavedCode(code ?? "");
+      }
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [code, language, problemId, lastSavedCode]);
 
   // Validate active case index
   useEffect(() => {
@@ -234,6 +305,12 @@ const ProblemDetailPage = () => {
       setActiveCaseIndex(0);
     }
   }, [runCases.length, activeCaseIndex]);
+
+  useEffect(() => {
+    if (!showCelebration) return;
+    const timer = setTimeout(() => setShowCelebration(false), 2200);
+    return () => clearTimeout(timer);
+  }, [showCelebration]);
 
   // Handle responsive layout and dragging
   useEffect(() => {
@@ -359,6 +436,12 @@ const ProblemDetailPage = () => {
       : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800";
   }
 
+  function formatOutput(value?: string | null) {
+    if (value === null || value === undefined || value === "") return "(no output)";
+    if (value.trim() === "") return "(whitespace output)";
+    return value;
+  }
+
   const executionStatus = isExecuting
     ? executionMode === "submit"
       ? "Submitting..."
@@ -377,6 +460,36 @@ const ProblemDetailPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-sky-50/40">
+      {showCelebration && (
+        <div className="celebration-overlay">
+          <div className="confetti confetti-a" />
+          <div className="confetti confetti-b" />
+          <div className="confetti confetti-c" />
+          <div className="confetti confetti-d" />
+          <div className="confetti confetti-e" />
+          <div className="confetti confetti-f" />
+        </div>
+      )}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Good job! 🎉</h3>
+                <p className="text-sm text-muted-foreground">You got Accepted.</p>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowSuccessModal(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="space-y-4 px-4 py-4 lg:px-6 lg:py-6">
       {/* Header */}
       <Card className="border-2 bg-card">
@@ -387,6 +500,18 @@ const ProblemDetailPage = () => {
                 <Badge className={getDifficultyColor(problem.difficulty)}>
                   {problem.difficulty}
                 </Badge>
+                {submissionStatus !== "none" && (
+                  <Badge
+                    variant="secondary"
+                    className={
+                      submissionStatus === "solved"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+                    }
+                  >
+                    {submissionStatus === "solved" ? "Solved" : "Tried"}
+                  </Badge>
+                )}
                 <span className="text-sm text-muted-foreground">#{problem.id}</span>
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">{problem.title}</h1>
@@ -438,6 +563,7 @@ const ProblemDetailPage = () => {
                   Examples {sampleCases.length > 0 && `(${sampleCases.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="constraints" className="text-xs">Constraints</TabsTrigger>
+                <TabsTrigger value="submissions" className="text-xs">Submissions</TabsTrigger>
               </TabsList>
             </div>
 
@@ -494,6 +620,45 @@ const ProblemDetailPage = () => {
                     <div className="text-sm text-muted-foreground text-center py-8">
                       Constraints will be added later.
                     </div>
+                  </TabsContent>
+
+                  <TabsContent value="submissions" className="mt-0">
+                    {!user ? (
+                      <div className="text-sm text-muted-foreground text-center py-8">
+                        Please log in to see your submissions.
+                      </div>
+                    ) : submissions && submissions.length > 0 ? (
+                      <div className="space-y-3">
+                        {submissions.map((submission: any) => (
+                          <div
+                            key={submission.id}
+                            className="rounded-lg border bg-muted/20 p-3 flex items-center justify-between gap-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`px-2 py-1 rounded text-xs font-semibold ${getVerdictStyle(submission.verdict || "NA")}`}>
+                                <span className="inline-flex items-center gap-1">
+                                  {getVerdictIcon(submission.verdict || "NA")}
+                                  {(submission.verdict || "NA").toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {submission.passed ?? 0}/{submission.total ?? 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground uppercase">
+                                {submission.language}
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {submission.created_at ? new Date(submission.created_at).toLocaleString() : ""}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground text-center py-8">
+                        No submissions yet.
+                      </div>
+                    )}
                   </TabsContent>
                 </div>
               </ScrollArea>
@@ -562,11 +727,13 @@ const ProblemDetailPage = () => {
                                 <button
                                   key={tc.id ?? index}
                                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
+                                    tc.passed
+                                      ? "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300"
+                                  } ${
                                     index === activeCaseIndex
-                                      ? tc.passed
-                                        ? "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300"
-                                        : "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300"
-                                      : "bg-background border-border hover:border-primary/50"
+                                      ? "ring-2 ring-offset-2 ring-primary/40 dark:ring-primary/50"
+                                      : "hover:ring-2 hover:ring-offset-2 hover:ring-primary/30"
                                   }`}
                                   onClick={() => setActiveCaseIndex(index)}
                                   type="button"
@@ -623,7 +790,7 @@ const ProblemDetailPage = () => {
                                   <pre className={`text-xs font-mono whitespace-pre-wrap rounded-md border p-2 overflow-x-auto ${
                                     activeRunCase.passed ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-rose-50 dark:bg-rose-950/30"
                                   }`}>
-                                    {activeRunCase.stdout || "(no output)"}
+                                    {formatOutput(activeRunCase.stdout)}
                                   </pre>
                                 </div>
 
@@ -676,7 +843,16 @@ const ProblemDetailPage = () => {
               <span>Code</span>
             </div>
             <div className="flex items-center gap-2">
-              <Select value={language} onValueChange={setLanguage}>
+              <Select
+                value={language}
+                onValueChange={(value) => {
+                  setLanguage(value);
+                  if (!Number.isNaN(problemId)) {
+                    localStorage.setItem(`problem:${problemId}:preferredLanguage`, value);
+                  }
+                  localStorage.setItem("preferredLanguage", value);
+                }}
+              >
                 <SelectTrigger className="h-8 w-[140px] text-xs">
                   <SelectValue placeholder="Language" />
                 </SelectTrigger>
@@ -726,10 +902,14 @@ const ProblemDetailPage = () => {
                 if (value !== lastStarter) {
                   setHasUserEdits(true);
                 }
+                if (!Number.isNaN(problemId)) {
+                  const key = `problem:${problemId}:lang:${language.toLowerCase()}`;
+                  localStorage.setItem(key, value ?? "");
+                }
               }}
               height="100%"
                 language={language as "javascript" | "python" | "java" | "cpp" | "algo"}
-              />
+            />
           </div>
         </div>
       </div>

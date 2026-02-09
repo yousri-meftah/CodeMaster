@@ -7,3 +7,4 @@ vite.config.ts.*
 server
 shared
 .replit
+docs

@@ -1,13 +1,14 @@
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.controllers.auth import get_current_user
-from app.models import Problem
+from app.models import Problem, Submission, User
+from app.services.auth import decode_access_token
 from app.services.piston import execute_test_cases, summarize_results
 from database import get_db
-from schemas import SubmissionRequest, SubmissionSummary
+from schemas import SubmissionListItem, SubmissionRequest, SubmissionSummary
 
 router = APIRouter()
 
@@ -42,7 +43,6 @@ def _serialize_cases(results, include_io: bool, only_sample: bool):
     return cases
 
 
-@router.post("/run", response_model=SubmissionSummary)
 def _normalize_language(value: str) -> str:
     return (value or "").strip().lower()
 
@@ -61,8 +61,28 @@ def _guard_language_mismatch(language: str, code: str) -> None:
             detail="Your code looks like Python, but JavaScript is selected.",
         )
 
+def _get_user_from_request(request: Request, db: Session) -> User | None:
+    auth_header = request.headers.get("authorization")
+    if not auth_header:
+        return None
+    parts = auth_header.split(" ")
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        return None
+    payload = decode_access_token(parts[1])
+    if not payload or type(payload) is not dict:
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    return db.query(User).filter(User.id == user_id_int).first()
 
-def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
+
+@router.post("/run", response_model=SubmissionSummary)
+def run_submission(payload: SubmissionRequest, request: Request, db: Session = Depends(get_db)):
     try:
         problem = _load_problem(db, payload.problem_id)
         sample_cases = [tc for tc in problem.test_cases if tc.is_sample]
@@ -84,7 +104,6 @@ def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
                 for tc in sorted(sample_cases, key=lambda t: t.order)
             ],
         )
-        print("results = ",results)
         summary = summarize_results(results)
         return {
             "verdict": summary["verdict"],
@@ -134,6 +153,20 @@ def submit_submission(
         hidden_total = len([r for r in results if not r.get("is_sample")])
         hidden_passed = len([r for r in results if not r.get("is_sample") and r.get("passed")])
 
+        submission = Submission(
+            user_id=user.id,
+            problem_id=payload.problem_id,
+            language=language,
+            code=payload.code,
+            verdict=summary["verdict"],
+            passed=summary["passed"],
+            total=summary["total"],
+            is_submit=True,
+            status=summary["verdict"],
+        )
+        db.add(submission)
+        db.commit()
+
         return {
             "verdict": summary["verdict"],
             "passed": summary["passed"],
@@ -145,3 +178,21 @@ def submit_submission(
         raise
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
+
+@router.get("/problem/{problem_id}", response_model=list[SubmissionListItem])
+def list_problem_submissions(
+    problem_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    rows = (
+        db.query(Submission)
+        .filter(Submission.user_id == user.id, Submission.problem_id == problem_id)
+        .order_by(Submission.created_at.desc())
+        .all()
+    )
+    return rows

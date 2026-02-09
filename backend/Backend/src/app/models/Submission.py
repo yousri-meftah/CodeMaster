@@ -15,6 +15,11 @@ class Submission(Base):
     input_text = Column(Text, nullable=True)
     output_text = Column(Text, nullable=True)
     status = Column(String, nullable=True)
+    verdict = Column(String, nullable=True)
+    passed = Column(Integer, nullable=True)
+    total = Column(Integer, nullable=True)
+    runtime_ms = Column(Integer, nullable=True)
+    memory_kb = Column(Integer, nullable=True)
     is_submit = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

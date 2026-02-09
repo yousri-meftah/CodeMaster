@@ -32,6 +32,13 @@ type ProblemApi = Omit<Problem, "tags"> & {
   starter_codes?: ProblemStarterCodeApi[];
 };
 
+type ProblemsPageApi = {
+  items: ProblemApi[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
 export type RoadmapApi = {
   id: number;
   title: string;
@@ -72,6 +79,17 @@ export type SubmissionResult = {
   total: number;
   cases: SubmissionCase[];
   hidden?: { passed: number; total: number } | null;
+};
+
+export type SubmissionListItem = {
+  id: number;
+  problem_id: number;
+  language: string;
+  verdict?: string | null;
+  passed?: number | null;
+  total?: number | null;
+  is_submit: boolean;
+  created_at?: string | null;
 };
 
 const normalizeProblem = (problem: ProblemApi): Problem => ({
@@ -168,9 +186,14 @@ export const tagsAPI = {
 };
 
 export const problemsAPI = {
-  getAllProblems: async (params?: { name?: string; difficulty?: string }): Promise<Problem[]> => {
-    const response = await api.get<ProblemApi[]>("/problem", { params });
-    return response.data.map(normalizeProblem);
+  getAllProblems: async (params?: { name?: string; difficulty?: string; page?: number; page_size?: number }): Promise<{ items: Problem[]; total: number; page: number; page_size: number }> => {
+    const response = await api.get<ProblemsPageApi>("/problem", { params });
+    return {
+      items: response.data.items.map(normalizeProblem),
+      total: response.data.total,
+      page: response.data.page,
+      page_size: response.data.page_size,
+    };
   },
 
   getProblemById: async (id: string): Promise<Problem> => {
@@ -281,6 +304,13 @@ export const activityAPI = {
   },
 };
 
+export const userAPI = {
+  getSolutions: async () => {
+    const response = await api.get("/user/solutions");
+    return response.data;
+  },
+};
+
 export const articlesAPI = {
   getAllArticles: async (category?: string) => {
     const response = await api.get("/articles", {
@@ -301,6 +331,10 @@ export const submissionsAPI = {
   },
   submit: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
     const response = await api.post("/submission/submit", payload);
+    return response.data;
+  },
+  getByProblem: async (problemId: number): Promise<SubmissionListItem[]> => {
+    const response = await api.get(`/submission/problem/${problemId}`);
     return response.data;
   },
 };
