@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  backend:
+    container_name: "codemaster-backend-dev"
+    build:
+      context: .
+      dockerfile: ./Backend/docker/Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Backend:/backend
+    environment:
+      - UVICORN_RELOAD=1
+      - UVICORN_WORKERS=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - main
+
+  postgres:
+    container_name: "codemaster-postgres-dev"
+    image: postgres:15.4-alpine
+    env_file:
+      - ./Backend/envs/pg.env
+    expose:
+      - "5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    networks:
+      - main
+
+  redis:
+    container_name: "codemaster-redis-dev"
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - main
+
+networks:
+  main:
+
+volumes:
+  postgres-data:
+  redis-data:
