@@ -31,7 +31,6 @@ Open the app at `http://localhost:5173`.
 ## Project Structure
 - `client/` frontend app
 - `backend/` backend services
-- `shared/` shared types
 
 ## Contributing
 Issues and PRs are welcome. Keep changes focused and include tests when appropriate.
