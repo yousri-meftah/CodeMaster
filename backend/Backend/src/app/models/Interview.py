@@ -13,6 +13,7 @@ class Interview(Base):
     description = Column(Text, nullable=True)
     difficulty = Column(String(64), nullable=True)
     duration_minutes = Column(Integer, nullable=False)
+    availability_days = Column(Integer, nullable=False, default=7, server_default="7")
     settings = Column(JSON, nullable=False, default=dict)
     recruiter_id = Column(ForeignKey("users.id"), nullable=False)
     status = Column(String(32), nullable=False, default="draft", server_default="draft")

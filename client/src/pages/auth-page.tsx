@@ -35,6 +35,7 @@ const loginSchema = z.object({
 
 const registerSchema = loginSchema.extend({
   name: z.string().optional(),
+  role: z.enum(["user", "recruiter"]).default("user"),
   confirmPassword: z.string().min(6, {
     message: "Password must be at least 6 characters.",
   }),
@@ -61,6 +62,7 @@ const AuthPage = () => {
     defaultValues: {
       username: "",
       name: "",
+      role: "user",
       password: "",
       confirmPassword: "",
     },
@@ -271,6 +273,27 @@ const AuthPage = () => {
                                 {...field} 
                                 disabled={registerMutation.isPending}
                               />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={registerForm.control}
+                        name="role"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Account Type</FormLabel>
+                            <FormControl>
+                              <select
+                                {...field}
+                                disabled={registerMutation.isPending}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              >
+                                <option value="user">Standard User</option>
+                                <option value="recruiter">Recruiter</option>
+                              </select>
                             </FormControl>
                             <FormMessage />
                           </FormItem>

@@ -34,3 +34,6 @@ Open the app at `http://localhost:5173`.
 
 ## Contributing
 Issues and PRs are welcome. Keep changes focused and include tests when appropriate.
+
+## Roadmap
+Short-term TODOs are tracked in `INTERVIEW_TODO.md`.

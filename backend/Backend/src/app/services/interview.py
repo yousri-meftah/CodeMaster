@@ -70,6 +70,13 @@ def compute_expires_at(candidate: InterviewCandidate) -> datetime | None:
     return started_at + timedelta(minutes=candidate.interview.duration_minutes)
 
 
+def compute_available_until(candidate: InterviewCandidate) -> datetime | None:
+    created_at = _ensure_aware(candidate.created_at)
+    if not created_at:
+        return None
+    return created_at + timedelta(days=candidate.interview.availability_days)
+
+
 def mark_candidate_expired(candidate: InterviewCandidate) -> None:
     now = _utcnow()
     candidate.status = "expired"
@@ -81,12 +88,17 @@ def mark_candidate_expired(candidate: InterviewCandidate) -> None:
 def expire_candidate_if_needed(candidate: InterviewCandidate) -> None:
     if candidate.status in {"submitted", "expired"}:
         return
+    if candidate.status == "pending":
+        available_until = compute_available_until(candidate)
+        if available_until and _utcnow() >= available_until:
+            mark_candidate_expired(candidate)
+            return
     expires_at = compute_expires_at(candidate)
     if expires_at and _utcnow() >= expires_at:
         mark_candidate_expired(candidate)
 
 
-def get_candidate_by_token(db: Session, token: str) -> InterviewCandidate:
+def get_candidate_by_token(db: Session, token: str, allow_expired: bool = False) -> InterviewCandidate:
     candidate = (
         db.query(InterviewCandidate)
         .filter(InterviewCandidate.token == token)
@@ -97,7 +109,7 @@ def get_candidate_by_token(db: Session, token: str) -> InterviewCandidate:
     expire_candidate_if_needed(candidate)
     db.commit()
     db.refresh(candidate)
-    if candidate.status == "expired":
+    if candidate.status == "expired" and not allow_expired:
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Interview session expired")
     return candidate
 
@@ -135,10 +147,12 @@ def serialize_candidate_session(candidate: InterviewCandidate) -> dict:
         "description": interview.description,
         "difficulty": interview.difficulty,
         "duration_minutes": interview.duration_minutes,
+        "availability_days": interview.availability_days,
         "status": candidate.status,
         "started_at": candidate.started_at,
         "submitted_at": candidate.submitted_at,
         "expires_at": compute_expires_at(candidate),
+        "available_until": compute_available_until(candidate),
         "candidate_email": candidate.email,
         "settings": interview.settings or {},
         "problems": [serialize_interview_problem(item) for item in problems],

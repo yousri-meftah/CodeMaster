@@ -172,7 +172,7 @@ def list_candidates(
     interview_id: int,
     page: int = 1,
     page_size: int = 20,
-    status_filter: str | None = None,
+    status: str | None = None,
     search: str | None = None,
     db: Session = Depends(get_db),
     user=Depends(require_recruiter),
@@ -182,8 +182,8 @@ def list_candidates(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
     _ensure_owner_or_admin(interview, user)
     query = db.query(InterviewCandidate).filter(InterviewCandidate.interview_id == interview_id)
-    if status_filter:
-        query = query.filter(InterviewCandidate.status == status_filter)
+    if status:
+        query = query.filter(InterviewCandidate.status == status)
     if search:
         query = query.filter(InterviewCandidate.email.ilike(f"%{search}%"))
     total = query.count()

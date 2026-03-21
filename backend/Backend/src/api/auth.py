@@ -42,5 +42,9 @@ async def login(data: OAuth2PasswordRequestForm = Depends(), db: Session = Depen
 
 @router.get("/me", response_model=UserOut)
 def get_me(current_user=Depends(get_current_user)):
-    # print("cur = ",current_user.__dict__)
-    return UserOut(**current_user.__dict__)
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+    return current_user

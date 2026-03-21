@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Interview, InterviewCandidate, InterviewProblem
@@ -23,7 +24,7 @@ router = APIRouter()
 
 
 def _load_candidate_with_interview(db: Session, token: str) -> InterviewCandidate:
-    candidate = get_candidate_by_token(db, token)
+    candidate = get_candidate_by_token(db, token, allow_expired=True)
     return (
         db.query(InterviewCandidate)
         .options(joinedload(InterviewCandidate.interview).joinedload(Interview.interview_problems).joinedload(InterviewProblem.problem))
@@ -41,10 +42,18 @@ def get_session(token: str, db: Session = Depends(get_db)):
 @router.post("/start", response_model=CandidateSessionOut)
 def start_session(token: str, db: Session = Depends(get_db)):
     candidate = _load_candidate_with_interview(db, token)
+    if candidate.status == "submitted":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Interview already submitted",
+        )
+    if candidate.status == "expired":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Interview session expired",
+        )
     if candidate.status == "pending":
-        from datetime import datetime
-
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         candidate.status = "started"
         candidate.started_at = now
         candidate.last_seen_at = now

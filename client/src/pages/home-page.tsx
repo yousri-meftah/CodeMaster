@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Problem, Article } from "@shared/schema";
 import { problemsAPI } from "@/services/api";
-import { ExternalLink, ChevronRight, Code, BookOpen, Route } from "lucide-react";
+import { ChevronRight, Code } from "lucide-react";
 
 const HomePage = () => {
   // Fetch problem categories

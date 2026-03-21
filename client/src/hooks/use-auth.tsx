@@ -9,6 +9,7 @@ type AuthContextType = {
   isLoading: boolean;
   error: Error | null;
   isAdmin: boolean;
+  isRecruiter: boolean;
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<User, Error, RegisterData>;
@@ -34,7 +35,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   
-  const isAdmin = user?.is_admin ?? false;
+  const isAdmin = (user?.is_admin ?? false) || user?.role === "admin";
+  const isRecruiter = isAdmin || user?.role === "recruiter";
+
+  const getPostAuthPath = (nextUser: User | null | undefined) => {
+    const nextIsAdmin = (nextUser?.is_admin ?? false) || nextUser?.role === "admin";
+    const nextIsRecruiter = nextIsAdmin || nextUser?.role === "recruiter";
+    return nextIsRecruiter ? "/interviews" : "/";
+  };
 
   // Check if user is admin when accessing admin routes
   useEffect(() => {
@@ -73,13 +81,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: authAPI.login,
     onSuccess: async () => {
-      // After login, fetch user data
-      await refetchUser();
+      const result = await refetchUser();
+      const nextUser = result.data ?? queryClient.getQueryData<User | null>(["user"]);
       toast({
         title: "Login successful",
         description: "Welcome back!",
       });
-      setLocation("/");
+      setLocation(getPostAuthPath(nextUser));
     },
     onError: (error: Error) => {
       toast({
@@ -93,13 +101,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: authAPI.register,
     onSuccess: async () => {
-      // After register, fetch user data
-      await refetchUser();
+      const result = await refetchUser();
+      const nextUser = result.data ?? queryClient.getQueryData<User | null>(["user"]);
       toast({
         title: "Registration successful",
         description: "Welcome to CodePractice!",
       });
-      setLocation("/");
+      setLocation(getPostAuthPath(nextUser));
     },
     onError: (error: Error) => {
       toast({
@@ -137,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         error,
         isAdmin,
+        isRecruiter,
         loginMutation,
         logoutMutation,
         registerMutation,

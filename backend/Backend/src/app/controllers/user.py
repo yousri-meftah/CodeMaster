@@ -14,12 +14,18 @@ def register_user(user: UserCreate, db: Session):
     if db.query(User).filter(User.email == user.email).first():
         raise UserEmailAlreadyExistsException
 
+    role = (user.role or "user").strip().lower()
+    if role not in {"user", "recruiter"}:
+        role = "user"
+
     hashed_password = hash_password(user.password)
     db_user = User(
         name=user.name,
         email=user.email,
         phone=user.phone,
-        password=hashed_password
+        password=hashed_password,
+        role=role,
+        is_admin=False,
     )
     db.add(db_user)
 
