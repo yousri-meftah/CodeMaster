@@ -28,7 +28,7 @@ const InterviewEntryPage = () => {
       queryClient.setQueryData(["candidate-session", token], session);
       queryClient.setQueryData(["candidate-session-active", token], session);
       sessionStorage.setItem("interview_active_token", token);
-      setLocation(`/interview/session?token=${encodeURIComponent(token)}`);
+      setLocation(`/challenge/session?token=${encodeURIComponent(token)}`);
     },
   });
 
@@ -44,7 +44,7 @@ const InterviewEntryPage = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <Input value={manualToken} onChange={(event) => setManualToken(event.target.value)} placeholder="Paste token" />
-            <Button disabled={!manualToken.trim()} onClick={() => setLocation(`/interview?token=${encodeURIComponent(manualToken.trim())}`)}>
+            <Button disabled={!manualToken.trim()} onClick={() => setLocation(`/challenge?token=${encodeURIComponent(manualToken.trim())}`)}>
               Continue
             </Button>
           </CardContent>
@@ -158,7 +158,7 @@ const InterviewEntryPage = () => {
               </Button>
             )}
             {canContinue && (
-              <Button className="w-full" onClick={() => setLocation(`/interview/session?token=${encodeURIComponent(token)}`)}>
+              <Button className="w-full" onClick={() => setLocation(`/challenge/session?token=${encodeURIComponent(token)}`)}>
                 <TimerReset className="mr-2 h-4 w-4" />
                 Continue Interview
               </Button>

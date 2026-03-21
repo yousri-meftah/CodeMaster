@@ -127,7 +127,7 @@ const InterviewDetailPage = () => {
 
   const copyCandidateLink = async (token: string) => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/interview?token=${token}`);
+      await navigator.clipboard.writeText(`${window.location.origin}/challenge?token=${token}`);
       toast({ title: "Link copied", description: "Candidate interview link copied to clipboard." });
     } catch {
       toast({ title: "Copy failed", description: "Clipboard access failed.", variant: "destructive" });

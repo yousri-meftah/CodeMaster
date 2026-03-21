@@ -69,7 +69,7 @@ const InterviewSessionPage = () => {
   useEffect(() => {
     if (session?.status === "pending" || session?.status === "expired" || session?.status === "submitted") {
       sessionStorage.removeItem("interview_active_token");
-      setLocation(`/interview?token=${encodeURIComponent(token)}`);
+      setLocation(`/challenge?token=${encodeURIComponent(token)}`);
     }
   }, [session?.status, setLocation, token]);
 
@@ -126,7 +126,7 @@ const InterviewSessionPage = () => {
           : previous,
       );
       toast({ title: "Interview submitted", description: "Your responses have been recorded." });
-      setLocation(`/interview/thank-you?token=${encodeURIComponent(token)}`);
+      setLocation(`/challenge/thank-you?token=${encodeURIComponent(token)}`);
     },
     onError: (error: Error) => {
       loggingEnabledRef.current = true;
@@ -384,7 +384,7 @@ const InterviewSessionPage = () => {
   }, [activeCaseIndex, runCases.length]);
 
   if (!token) {
-    return <Redirect to="/interview" />;
+    return <Redirect to="/challenge" />;
   }
 
   if (sessionQuery.isLoading || !session) {
@@ -405,7 +405,7 @@ const InterviewSessionPage = () => {
             <CardDescription>This interview is not in an active state. Return to the session page for the current status.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => setLocation(`/interview?token=${encodeURIComponent(token)}`)}>Back to session page</Button>
+            <Button onClick={() => setLocation(`/challenge?token=${encodeURIComponent(token)}`)}>Back to session page</Button>
           </CardContent>
         </Card>
       </div>

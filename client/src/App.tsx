@@ -30,16 +30,16 @@ import Footer from "@/components/layout/Footer";
 function Router() {
   const [location] = useLocation();
   const interviewToken = sessionStorage.getItem("interview_active_token");
-  const isInterviewPath = location.startsWith("/interview");
+  const isChallengePath = location.startsWith("/challenge");
 
-  if (interviewToken && !isInterviewPath) {
-    return <Redirect to={`/interview/session?token=${encodeURIComponent(interviewToken)}`} />;
+  if (interviewToken && !isChallengePath) {
+    return <Redirect to={`/challenge/session?token=${encodeURIComponent(interviewToken)}`} />;
   }
 
   return (
     <div className="flex flex-col min-h-screen">
-      {!isInterviewPath && <Header />}
-      <main className={isInterviewPath ? "flex-1" : "flex-1 container mx-auto px-4 py-6"}>
+      {!isChallengePath && <Header />}
+      <main className={isChallengePath ? "flex-1" : "flex-1 container mx-auto px-4 py-6"}>
         <Switch>
           <Route path="/" component={HomePage} />
           <Route path="/problems" component={ProblemsPage} />
@@ -48,8 +48,9 @@ function Router() {
           <Route path="/roadmap" component={RoadmapPage} />
           <Route path="/articles/:id" component={ArticleDetailPage} />
           <Route path="/auth" component={AuthPage} />
-          <Route path="/interview/session" component={InterviewSessionPage} />
-          <Route path="/interview/thank-you" component={InterviewThankYouPage} />
+          <Route path="/challenge/session" component={InterviewSessionPage} />
+          <Route path="/challenge/thank-you" component={InterviewThankYouPage} />
+          <Route path="/challenge" component={InterviewEntryPage} />
           <Route path="/interview" component={InterviewEntryPage} />
           <ProtectedRoute path="/profile" component={ProfilePage} />
           <ProtectedRoute path="/interviews" component={InterviewsPage} requireRole="recruiter" />
@@ -59,7 +60,7 @@ function Router() {
           <Route component={NotFound} />
         </Switch>
       </main>
-      {!isInterviewPath && <Footer />}
+      {!isChallengePath && <Footer />}
     </div>
   );
 }
