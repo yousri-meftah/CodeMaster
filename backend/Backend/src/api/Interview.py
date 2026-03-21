@@ -24,7 +24,7 @@ router = APIRouter()
 
 
 def _load_candidate_with_interview(db: Session, token: str) -> InterviewCandidate:
-    candidate = get_candidate_by_token(db, token, allow_expired=True)
+    candidate = get_candidate_by_token(db, token)
     return (
         db.query(InterviewCandidate)
         .options(joinedload(InterviewCandidate.interview).joinedload(Interview.interview_problems).joinedload(InterviewProblem.problem))
