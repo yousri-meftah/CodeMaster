@@ -1,28 +1,29 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel
+
+from pydantic import BaseModel, ConfigDict
 
 # ---------- TAG ----------
 class TagIn(BaseModel):
     name: str
+
 
 class UserOut(BaseModel):
     id: int
     name: str
     email: str
     phone: Optional[str]
-    is_admin: Optional[bool]= False
+    is_admin: Optional[bool] = False
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TagOut(BaseModel):
     id: int
     name: str
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- PROBLEM TEST CASE ----------
 class ProblemTestCaseIn(BaseModel):
@@ -31,6 +32,7 @@ class ProblemTestCaseIn(BaseModel):
     is_sample: Optional[bool] = True
     order: Optional[int] = 0
 
+
 class ProblemTestCaseOut(BaseModel):
     id: int
     input_text: str
@@ -38,21 +40,22 @@ class ProblemTestCaseOut(BaseModel):
     is_sample: bool
     order: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- PROBLEM STARTER CODE ----------
 class ProblemStarterCodeIn(BaseModel):
     language: str
     code: str
 
+
 class ProblemStarterCodeOut(BaseModel):
     id: int
     language: str
     code: str
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- PROBLEM ----------
 class ProblemIn(BaseModel):
@@ -65,6 +68,7 @@ class ProblemIn(BaseModel):
     test_cases: Optional[List[ProblemTestCaseIn]] = None
     starter_codes: Optional[List[ProblemStarterCodeIn]] = None
 
+
 class ProblemOut(BaseModel):
     id: int
     title: str
@@ -76,13 +80,14 @@ class ProblemOut(BaseModel):
     test_cases: List[ProblemTestCaseOut] = []
     starter_codes: List[ProblemStarterCodeOut] = []
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- SAVED SOLUTION ----------
 class SavedSolutionIn(BaseModel):
     problem_id: int
     code: str
+
 
 class SavedSolutionOut(BaseModel):
     id: int
@@ -90,13 +95,14 @@ class SavedSolutionOut(BaseModel):
     code: str
     timestamp: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- COMMENT ----------
 class CommentIn(BaseModel):
     problem_id: int
     content: str
+
 
 class CommentOut(BaseModel):
     id: int
@@ -105,21 +111,22 @@ class CommentOut(BaseModel):
     content: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- ROADMAP ----------
 class RoadmapIn(BaseModel):
     title: str
     problem_ids_ordered: List[int]
 
+
 class RoadmapOut(BaseModel):
     id: int
     title: str
     problem_ids_ordered: List[int]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- ARTICLE ----------
 class ArticleIn(BaseModel):
@@ -130,6 +137,7 @@ class ArticleIn(BaseModel):
     author: Optional[str] = None
     read_time: Optional[int] = None
     categories: Optional[List[str]] = None
+
 
 class ArticleOut(BaseModel):
     id: int
@@ -142,8 +150,8 @@ class ArticleOut(BaseModel):
     categories: Optional[List[str]] = None
     created_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- EXECUTION ----------
 class ExecutionRequest(BaseModel):
@@ -151,10 +159,12 @@ class ExecutionRequest(BaseModel):
     input: Optional[str] = None
     language: str = "algo"
 
+
 class ExecutionResult(BaseModel):
     stdout: str
     stderr: Optional[str] = None
     status: str = "ok"
+
 
 class SubmissionOut(BaseModel):
     id: int
@@ -162,8 +172,8 @@ class SubmissionOut(BaseModel):
     output_text: Optional[str] = None
     created_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------- SUBMISSION ----------
 class SubmissionRequest(BaseModel):
@@ -204,8 +214,7 @@ class SubmissionListItem(BaseModel):
     is_submit: bool
     created_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProblemPageOut(BaseModel):

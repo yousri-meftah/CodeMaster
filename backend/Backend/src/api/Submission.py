@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 def _load_problem(db: Session, problem_id: int) -> Problem:
-    problem = db.query(Problem).get(problem_id)
+    problem = db.get(Problem, problem_id)
     if not problem:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Problem not found")
     return problem

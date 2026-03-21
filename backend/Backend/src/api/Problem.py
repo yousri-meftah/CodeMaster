@@ -173,7 +173,7 @@ def get_daily_problem(db: Session = Depends(get_db)):
 @router.get("/{problem_id}", response_model=ProblemOut)
 def get_problem(problem_id: int, db: Session = Depends(get_db)):
     try:
-        problem = db.query(Problem).get(problem_id)
+        problem = db.get(Problem, problem_id)
         if not problem:
             raise HTTPException(status_code=404, detail="Problem not found")
         return serialize_problem(problem)
@@ -183,7 +183,7 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
 @router.put("/{problem_id}", response_model=ProblemOut)
 def update_problem(problem_id: int, data: ProblemIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
     try:
-        problem = db.query(Problem).get(problem_id)
+        problem = db.get(Problem, problem_id)
         if not problem:
             raise HTTPException(status_code=404, detail="Problem not found")
         problem.title = data.title
@@ -220,7 +220,7 @@ def update_problem(problem_id: int, data: ProblemIn, db: Session = Depends(get_d
 @router.delete("/{problem_id}")
 def delete_problem(problem_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
     try:
-        problem = db.query(Problem).get(problem_id)
+        problem = db.get(Problem, problem_id)
         if not problem:
             raise HTTPException(status_code=404, detail="Problem not found")
         db.delete(problem)
