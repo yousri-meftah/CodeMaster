@@ -5,6 +5,28 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+_REQUIRED_ENV_DEFAULTS = {
+    "REDIS_URL": "redis://localhost:6379/0",
+    "MAIL_USERNAME": "test@example.com",
+    "MAIL_PASSWORD": "test",
+    "MAIL_FROM": "test@example.com",
+    "MAIL_PORT": "587",
+    "MAIL_SERVER": "smtp.example.com",
+    "MAIL_FROM_NAME": "test",
+    "SECRET_KEY": "test-secret-key",
+    "JWT_ALGORITHM": "HS256",
+    "JWT_EXPIRATION_MINUETS": "60",
+    "CODE_EXPIRATION_MINUTES": "5",
+    "POSTGRES_URL": "sqlite+pysqlite:///:memory:",
+    "POSTGRES_DB": "test_db",
+    "POSTGRES_USER": "test",
+    "POSTGRES_PASSWORD": "test",
+    "POSTGRES_HOST": "localhost",
+}
+
+for key, value in _REQUIRED_ENV_DEFAULTS.items():
+    os.environ.setdefault(key, value)
+
 from app.models import Base
 from database import get_db
 from main import app
