@@ -36,3 +36,4 @@ GitHub Actions runs backend tests only:
 ## Next
 - Re-enable piston submission test when service is up.
 - Expand edge-case tests for submissions and auth.
+- Add more auth and validation edge cases as features grow.
