@@ -21,7 +21,11 @@ def create_roadmap(data: RoadmapIn, db: Session = Depends(get_db), user=Depends(
             db.add(link)
         db.commit()
         db.refresh(roadmap)
-        return roadmap
+        return RoadmapOut(
+            id=roadmap.id,
+            title=roadmap.title,
+            problem_ids_ordered=list(data.problem_ids_ordered),
+        )
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

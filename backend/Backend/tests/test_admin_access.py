@@ -91,5 +91,5 @@ def test_admin_can_create_content(client, db_session):
 
 
 def test_saved_solution_requires_auth(client):
-    resp = client.post("/saved-solution/", json={"problem_id": 1, "code": "x"})
+    resp = client.post("/SavedSolution/", json={"problem_id": 1, "code": "x"})
     assert resp.status_code == 401
