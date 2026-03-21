@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -19,7 +19,15 @@ def generate_candidate_token() -> str:
 
 
 def _utcnow() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
+
+
+def _ensure_aware(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def load_interview_or_404(db: Session, interview_id: int) -> Interview:
@@ -56,9 +64,10 @@ def replace_interview_problems(db: Session, interview: Interview, problems: list
 
 
 def compute_expires_at(candidate: InterviewCandidate) -> datetime | None:
-    if not candidate.started_at:
+    started_at = _ensure_aware(candidate.started_at)
+    if not started_at:
         return None
-    return candidate.started_at + timedelta(minutes=candidate.interview.duration_minutes)
+    return started_at + timedelta(minutes=candidate.interview.duration_minutes)
 
 
 def mark_candidate_expired(candidate: InterviewCandidate) -> None:
