@@ -16,3 +16,8 @@ from .ProblemTestCase import ProblemTestCase
 from .ProblemStarterCode import ProblemStarterCode
 from .article import Article
 from .Submission import Submission
+from .Interview import Interview
+from .InterviewProblem import InterviewProblem
+from .InterviewCandidate import InterviewCandidate
+from .InterviewSubmission import InterviewSubmission
+from .InterviewActivityLog import InterviewActivityLog

@@ -34,9 +34,17 @@ def require_user(user=Depends(get_current_user)):
 def require_admin(user=Depends(get_current_user)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    if not getattr(user, "is_admin", False):
+    if not (getattr(user, "is_admin", False) or getattr(user, "role", "user") == "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     return user
+
+
+def require_recruiter(user=Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    if getattr(user, "is_admin", False) or getattr(user, "role", "user") in {"admin", "recruiter"}:
+        return user
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Recruiter only")
 
 
 class JWTAuth:

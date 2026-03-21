@@ -14,8 +14,10 @@ class User(Base):
     password = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_admin = Column(Boolean, default=False)
+    role = Column(String(32), nullable=False, default="user", server_default="user")
 
     saved_solutions = relationship("SavedSolution", back_populates="user", cascade="all, delete")
     comments = relationship("Comment", back_populates="user", cascade="all, delete")
     favorites = relationship("Favorite", cascade="all, delete", lazy="joined")
     done_problems = relationship("DoneProblem", cascade="all, delete", lazy="joined")
+    interviews = relationship("Interview", back_populates="recruiter", cascade="all, delete")

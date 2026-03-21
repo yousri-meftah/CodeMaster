@@ -1,4 +1,10 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_DIR = BASE_DIR / "envs"
 
 
 class BaseConfig(BaseSettings):
@@ -8,8 +14,8 @@ class BaseConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=(
-            "envs/backend.env",
-            "envs/pg.env",
+            str(ENV_DIR / "backend.env"),
+            str(ENV_DIR / "pg.env"),
         ),
     )
 

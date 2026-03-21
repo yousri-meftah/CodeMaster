@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------- TAG ----------
 class TagIn(BaseModel):
@@ -14,6 +14,7 @@ class UserOut(BaseModel):
     email: str
     phone: Optional[str]
     is_admin: Optional[bool] = False
+    role: str = "user"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -222,3 +223,112 @@ class ProblemPageOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------- INTERVIEWS ----------
+class InterviewProblemRef(BaseModel):
+    problem_id: int
+    order: int = 0
+
+
+class InterviewIn(BaseModel):
+    title: str
+    description: Optional[str] = None
+    difficulty: Optional[str] = None
+    duration_minutes: int
+    settings: dict = Field(default_factory=dict)
+    status: str = "draft"
+    problems: List[InterviewProblemRef]
+
+
+class InterviewOut(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    difficulty: Optional[str] = None
+    duration_minutes: int
+    settings: dict
+    recruiter_id: int
+    status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InterviewProblemOut(BaseModel):
+    id: int
+    title: str
+    difficulty: str
+    description: Optional[str] = None
+    constraints: Optional[str] = None
+    order: int
+
+
+class InterviewDetailOut(InterviewOut):
+    problems: List[InterviewProblemOut]
+
+
+class InterviewCandidateBatchIn(BaseModel):
+    emails: List[str]
+
+
+class InterviewCandidateOut(BaseModel):
+    id: int
+    email: str
+    token: str
+    status: str
+    started_at: Optional[datetime] = None
+    submitted_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InterviewSubmissionOut(BaseModel):
+    id: int
+    candidate_id: int
+    candidate_email: str
+    problem_id: int
+    language: str
+    code: str
+    created_at: Optional[datetime] = None
+
+
+class InterviewActivityLogOut(BaseModel):
+    id: int
+    candidate_id: int
+    candidate_email: str
+    event_type: str
+    meta: Optional[dict] = None
+    timestamp: Optional[datetime] = None
+
+
+class CandidateSessionOut(BaseModel):
+    interview_id: int
+    title: str
+    description: Optional[str] = None
+    difficulty: Optional[str] = None
+    duration_minutes: int
+    status: str
+    started_at: Optional[datetime] = None
+    submitted_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    candidate_email: str
+    settings: dict
+    problems: List[InterviewProblemOut]
+
+
+class InterviewSaveIn(BaseModel):
+    token: str
+    problem_id: int
+    language: str
+    code: str
+
+
+class InterviewSubmitIn(BaseModel):
+    token: str
+
+
+class InterviewLogIn(BaseModel):
+    token: str
+    event_type: str
+    meta: Optional[dict] = None
