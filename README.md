@@ -32,6 +32,7 @@ GitHub Actions runs backend tests only:
 ## Status
 - Backend has API-level tests and CI.
 - Admin-only enforcement for content creation (problems/tags/articles/roadmaps).
+- Saved solutions route standardized at `/saved-solution` with legacy alias.
 
 ## Next
 - Re-enable piston submission test when service is up.
