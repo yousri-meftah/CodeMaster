@@ -105,13 +105,20 @@ def run_submission(payload: SubmissionRequest, request: Request, db: Session = D
             ],
         )
         summary = summarize_results(results)
-        return {
+        response = {
             "verdict": summary["verdict"],
             "passed": summary["passed"],
             "total": summary["total"],
             "cases": _serialize_cases(results, include_io=True, only_sample=True),
             "hidden": None,
         }
+        if language == "algo":
+            response["algo_outputs"] = [
+                {"id": r.get("id"), "stdout": r.get("stdout"), "stderr": r.get("stderr")}
+                for r in results
+                if r.get("is_sample", True)
+            ]
+        return response
     except HTTPException:
         raise
     except Exception as exc:
@@ -167,13 +174,20 @@ def submit_submission(
         db.add(submission)
         db.commit()
 
-        return {
+        response = {
             "verdict": summary["verdict"],
             "passed": summary["passed"],
             "total": summary["total"],
             "cases": _serialize_cases(results, include_io=True, only_sample=True),
             "hidden": {"passed": hidden_passed, "total": hidden_total},
         }
+        if language == "algo":
+            response["algo_outputs"] = [
+                {"id": r.get("id"), "stdout": r.get("stdout"), "stderr": r.get("stderr")}
+                for r in results
+                if r.get("is_sample", True)
+            ]
+        return response
     except HTTPException:
         raise
     except Exception as exc:
