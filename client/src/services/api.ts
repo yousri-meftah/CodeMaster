@@ -9,6 +9,7 @@ export interface User {
   email: string;
   phone: string;
   is_admin: boolean;
+  role?: "user" | "recruiter" | "admin";
 }
 
 export interface LoginData {
@@ -18,6 +19,7 @@ export interface LoginData {
 
 export interface RegisterData extends LoginData {
   name?: string;
+  role?: "user" | "recruiter";
 }
 
 export type TagApi = {
@@ -92,6 +94,89 @@ export type SubmissionListItem = {
   created_at?: string | null;
 };
 
+export type InterviewProblemRef = {
+  problem_id: number;
+  order: number;
+};
+
+export type Interview = {
+  id: number;
+  title: string;
+  description?: string | null;
+  difficulty?: string | null;
+  duration_minutes: number;
+  availability_days: number;
+  settings: Record<string, unknown>;
+  recruiter_id: number;
+  status: string;
+};
+
+export type InterviewProblem = {
+  id: number;
+  title: string;
+  difficulty: string;
+  description?: string | null;
+  constraints?: string | null;
+  order: number;
+};
+
+export type InterviewDetail = Interview & {
+  problems: InterviewProblem[];
+};
+
+export type InterviewCandidate = {
+  id: number;
+  email: string;
+  token: string;
+  status: string;
+  started_at?: string | null;
+  submitted_at?: string | null;
+  last_seen_at?: string | null;
+};
+
+export type InterviewCandidatesPage = {
+  items: InterviewCandidate[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type InterviewSubmission = {
+  id: number;
+  candidate_id: number;
+  candidate_email: string;
+  problem_id: number;
+  language: string;
+  code: string;
+  created_at?: string | null;
+};
+
+export type InterviewLog = {
+  id: number;
+  candidate_id: number;
+  candidate_email: string;
+  event_type: string;
+  meta?: Record<string, unknown> | null;
+  timestamp?: string | null;
+};
+
+export type CandidateSession = {
+  interview_id: number;
+  title: string;
+  description?: string | null;
+  difficulty?: string | null;
+  duration_minutes: number;
+  availability_days: number;
+  status: string;
+  started_at?: string | null;
+  submitted_at?: string | null;
+  expires_at?: string | null;
+  available_until?: string | null;
+  candidate_email: string;
+  settings: Record<string, unknown>;
+  problems: InterviewProblem[];
+};
+
 const normalizeProblem = (problem: ProblemApi): Problem => ({
   ...problem,
   tags: (problem.tags ?? []).map((tag) => tag.name),
@@ -121,7 +206,13 @@ api.interceptors.response.use(
   (error) => {
     const status = error?.response?.status;
     const url = error?.config?.url ?? "";
+    const detail = error?.response?.data?.detail;
     const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/register");
+
+    if (typeof detail === "string" && detail.trim()) {
+      error.message = detail;
+    }
+
     if (status === 401 && !isAuthEndpoint) {
       localStorage.removeItem("token");
       window.dispatchEvent(new CustomEvent("auth:expired"));
@@ -154,6 +245,7 @@ export const authAPI = {
     name: data.name,
     password: data.password,
     email: data.username,
+    role: data.role ?? "user",
   };
 
   const response = await api.post('/auth/register', payload);
@@ -335,6 +427,88 @@ export const submissionsAPI = {
   },
   getByProblem: async (problemId: number): Promise<SubmissionListItem[]> => {
     const response = await api.get(`/submission/problem/${problemId}`);
+    return response.data;
+  },
+};
+
+export const interviewsAPI = {
+  list: async (): Promise<Interview[]> => {
+    const response = await api.get("/interviews/");
+    return response.data;
+  },
+  getById: async (id: number): Promise<InterviewDetail> => {
+    const response = await api.get(`/interviews/${id}`);
+    return response.data;
+  },
+  create: async (payload: {
+    title: string;
+    description?: string;
+    difficulty?: string;
+    duration_minutes: number;
+    availability_days: number;
+    settings: Record<string, unknown>;
+    status: string;
+    problems: InterviewProblemRef[];
+  }): Promise<InterviewDetail> => {
+    const response = await api.post("/interviews/", payload);
+    return response.data;
+  },
+  update: async (
+    id: number,
+    payload: {
+      title: string;
+      description?: string;
+      difficulty?: string;
+      duration_minutes: number;
+      availability_days: number;
+      settings: Record<string, unknown>;
+      status: string;
+      problems: InterviewProblemRef[];
+    },
+  ): Promise<InterviewDetail> => {
+    const response = await api.put(`/interviews/${id}`, payload);
+    return response.data;
+  },
+  addCandidates: async (id: number, emails: string[]): Promise<InterviewCandidate[]> => {
+    const response = await api.post(`/interviews/${id}/candidates`, { emails });
+    return response.data;
+  },
+  getCandidates: async (
+    id: number,
+    params?: { page?: number; page_size?: number; status?: string; search?: string },
+  ): Promise<InterviewCandidatesPage> => {
+    const response = await api.get(`/interviews/${id}/candidates`, { params });
+    return response.data;
+  },
+  getSubmissions: async (id: number): Promise<InterviewSubmission[]> => {
+    const response = await api.get(`/interviews/${id}/submissions`);
+    return response.data;
+  },
+  getLogs: async (id: number): Promise<InterviewLog[]> => {
+    const response = await api.get(`/interviews/${id}/logs`);
+    return response.data;
+  },
+};
+
+export const interviewSessionAPI = {
+  getSession: async (token: string): Promise<CandidateSession> => {
+    const response = await api.get("/interview/session", { params: { token } });
+    return response.data;
+  },
+  start: async (token: string): Promise<CandidateSession> => {
+    const response = await api.post("/interview/start", null, { params: { token } });
+    return response.data;
+  },
+  save: async (payload: { token: string; problem_id: number; language: string; code: string }): Promise<InterviewCandidate> => {
+    const response = await api.post("/interview/save", payload);
+    return response.data;
+  },
+  submit: async (token: string): Promise<InterviewCandidate> => {
+    const response = await api.post("/interview/submit", { token });
+    return response.data;
+  },
+  log: async (payload: { token: string; event_type: string; meta?: Record<string, unknown> }): Promise<InterviewCandidate> => {
+    const response = await api.post("/interview/log", payload);
     return response.data;
   },
 };

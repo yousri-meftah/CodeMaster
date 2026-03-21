@@ -12,8 +12,10 @@ from database import get_db
 from schemas import (
     InterviewCandidateBatchIn,
     InterviewCandidateOut,
+    InterviewCandidatesPageOut,
     InterviewDetailOut,
     InterviewIn,
+    InterviewOut,
     InterviewSubmissionOut,
     InterviewActivityLogOut,
 )
@@ -44,6 +46,7 @@ def _serialize_interview(interview: Interview) -> dict:
         "description": interview.description,
         "difficulty": interview.difficulty,
         "duration_minutes": interview.duration_minutes,
+        "availability_days": interview.availability_days,
         "settings": interview.settings or {},
         "recruiter_id": interview.recruiter_id,
         "status": interview.status,
@@ -61,6 +64,23 @@ def _serialize_interview(interview: Interview) -> dict:
     }
 
 
+@router.get("/", response_model=list[InterviewOut])
+def list_interviews(db: Session = Depends(get_db), user=Depends(require_recruiter)):
+    query = db.query(Interview).order_by(Interview.created_at.desc(), Interview.id.desc())
+    if not (getattr(user, "is_admin", False) or getattr(user, "role", "user") == "admin"):
+        query = query.filter(Interview.recruiter_id == user.id)
+    return query.all()
+
+
+@router.get("/{interview_id}", response_model=InterviewDetailOut)
+def get_interview(interview_id: int, db: Session = Depends(get_db), user=Depends(require_recruiter)):
+    interview = _load_interview_detail(db, interview_id)
+    if not interview:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+    _ensure_owner_or_admin(interview, user)
+    return _serialize_interview(interview)
+
+
 @router.post("/", response_model=InterviewDetailOut)
 def create_interview(data: InterviewIn, db: Session = Depends(get_db), user=Depends(require_recruiter)):
     interview = Interview(
@@ -68,6 +88,7 @@ def create_interview(data: InterviewIn, db: Session = Depends(get_db), user=Depe
         description=data.description,
         difficulty=data.difficulty,
         duration_minutes=data.duration_minutes,
+        availability_days=data.availability_days,
         settings=data.settings or {},
         recruiter_id=user.id,
         status=data.status,
@@ -90,6 +111,7 @@ def update_interview(interview_id: int, data: InterviewIn, db: Session = Depends
     interview.description = data.description
     interview.difficulty = data.difficulty
     interview.duration_minutes = data.duration_minutes
+    interview.availability_days = data.availability_days
     interview.settings = data.settings or {}
     interview.status = data.status
     replace_interview_problems(db, interview, data.problems)
@@ -107,16 +129,31 @@ def add_candidates(
 ):
     interview = load_interview_or_404(db, interview_id)
     _ensure_owner_or_admin(interview, user)
-    created = []
     existing = {candidate.email.lower(): candidate for candidate in interview.candidates}
+    normalized_emails: list[str] = []
+    duplicate_emails: list[str] = []
+
     for email in data.emails:
         normalized = (email or "").strip().lower()
         if not normalized:
             continue
-        candidate = existing.get(normalized)
-        if candidate:
-            created.append(candidate)
+        if normalized in existing or normalized in normalized_emails:
+            duplicate_emails.append(normalized)
             continue
+
+        normalized_emails.append(normalized)
+
+    if duplicate_emails:
+        duplicates = sorted(set(duplicate_emails))
+        noun = "Candidate" if len(duplicates) == 1 else "Candidates"
+        verb = "already exists" if len(duplicates) == 1 else "already exist"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{noun} {verb} for this interview: {', '.join(duplicates)}",
+        )
+
+    created = []
+    for normalized in normalized_emails:
         candidate = InterviewCandidate(
             interview_id=interview.id,
             email=normalized,
@@ -124,20 +161,39 @@ def add_candidates(
         )
         db.add(candidate)
         created.append(candidate)
-        existing[normalized] = candidate
     db.commit()
     for item in created:
         db.refresh(item)
     return created
 
 
-@router.get("/{interview_id}/candidates", response_model=list[InterviewCandidateOut])
-def list_candidates(interview_id: int, db: Session = Depends(get_db), user=Depends(require_recruiter)):
+@router.get("/{interview_id}/candidates", response_model=InterviewCandidatesPageOut)
+def list_candidates(
+    interview_id: int,
+    page: int = 1,
+    page_size: int = 20,
+    status_filter: str | None = None,
+    search: str | None = None,
+    db: Session = Depends(get_db),
+    user=Depends(require_recruiter),
+):
     interview = db.query(Interview).options(joinedload(Interview.candidates)).filter(Interview.id == interview_id).first()
     if not interview:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
     _ensure_owner_or_admin(interview, user)
-    return sorted(interview.candidates, key=lambda candidate: candidate.id)
+    query = db.query(InterviewCandidate).filter(InterviewCandidate.interview_id == interview_id)
+    if status_filter:
+        query = query.filter(InterviewCandidate.status == status_filter)
+    if search:
+        query = query.filter(InterviewCandidate.email.ilike(f"%{search}%"))
+    total = query.count()
+    items = (
+        query.order_by(InterviewCandidate.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/{interview_id}/submissions", response_model=list[InterviewSubmissionOut])

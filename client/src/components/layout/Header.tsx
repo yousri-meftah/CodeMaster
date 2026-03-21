@@ -12,7 +12,7 @@ import { Code, Flame } from "lucide-react";
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, isRecruiter } = useAuth();
   const { data: dailyProblem } = useQuery({
     queryKey: ["daily-problem"],
     queryFn: () => problemsAPI.getDailyProblem(),
@@ -23,6 +23,7 @@ const Header = () => {
     { name: "Problems", path: "/problems" },
     { name: "Explore", path: "/explore" },
     { name: "Roadmap", path: "/roadmap" },
+    ...(isRecruiter ? [{ name: "Interviews", path: "/interviews" }] : []),
   ];
 
   const isActiveLink = (path: string) => {
@@ -72,7 +73,7 @@ const Header = () => {
             </Link>
 
             {user ? (
-              <UserMenu user={user} />
+              <UserMenu />
             ) : (
               <Link href="/auth">
                 <Button variant="outline" size="sm">

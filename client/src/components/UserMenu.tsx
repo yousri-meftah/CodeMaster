@@ -14,7 +14,7 @@ import { User, Settings, BookOpen, LogOut, ChevronDown } from "lucide-react";
 
 const UserMenu = () => {
   const [open, setOpen] = useState(false);
-  const { user, logoutMutation, isAdmin } = useAuth();
+  const { user, logoutMutation, isAdmin, isRecruiter } = useAuth();
 
   if (!user) {
     return null;
@@ -26,7 +26,8 @@ const UserMenu = () => {
   };
 
   const getInitials = () => {
-    return user.name
+    const base = user.name?.trim() || user.email || "User";
+    return base
       .split(" ")
       .map((n) => n[0])
       .join("")
@@ -58,6 +59,14 @@ const UserMenu = () => {
             <span>Profile</span>
           </Link>
         </DropdownMenuItem>
+        {isRecruiter && (
+          <DropdownMenuItem asChild>
+            <Link href="/interviews" className="cursor-pointer flex w-full">
+              <BookOpen className="mr-2 h-4 w-4" />
+              <span>Interviews</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
         {isAdmin && (
           <DropdownMenuItem asChild>
             <Link href="/admin" className="cursor-pointer flex w-full">

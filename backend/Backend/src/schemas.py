@@ -236,6 +236,7 @@ class InterviewIn(BaseModel):
     description: Optional[str] = None
     difficulty: Optional[str] = None
     duration_minutes: int
+    availability_days: int = 7
     settings: dict = Field(default_factory=dict)
     status: str = "draft"
     problems: List[InterviewProblemRef]
@@ -247,6 +248,7 @@ class InterviewOut(BaseModel):
     description: Optional[str] = None
     difficulty: Optional[str] = None
     duration_minutes: int
+    availability_days: int
     settings: dict
     recruiter_id: int
     status: str
@@ -283,6 +285,13 @@ class InterviewCandidateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class InterviewCandidatesPageOut(BaseModel):
+    items: List[InterviewCandidateOut]
+    total: int
+    page: int
+    page_size: int
+
+
 class InterviewSubmissionOut(BaseModel):
     id: int
     candidate_id: int
@@ -308,10 +317,12 @@ class CandidateSessionOut(BaseModel):
     description: Optional[str] = None
     difficulty: Optional[str] = None
     duration_minutes: int
+    availability_days: int
     status: str
     started_at: Optional[datetime] = None
     submitted_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+    available_until: Optional[datetime] = None
     candidate_email: str
     settings: dict
     problems: List[InterviewProblemOut]
