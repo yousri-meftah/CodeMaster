@@ -29,5 +29,10 @@ python -m pytest
 GitHub Actions runs backend tests only:
 `.github/workflows/backend-ci.yml`
 
-## Notes
-Docs live in `docs/` and are kept concise.
+## Status
+- Backend has API-level tests and CI.
+- Admin-only enforcement for content creation (problems/tags/articles/roadmaps).
+
+## Next
+- Re-enable piston submission test when service is up.
+- Expand edge-case tests for submissions and auth.

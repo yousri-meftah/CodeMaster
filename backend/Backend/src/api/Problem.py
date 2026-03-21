@@ -5,7 +5,7 @@ from fastapi import Query
 from schemas import *
 from app.models import *
 from database import get_db
-from app.controllers.auth import get_current_user
+from app.controllers.auth import require_admin
 from sqlalchemy import func
 from datetime import datetime
 
@@ -85,7 +85,7 @@ def default_starter_codes(title: str) -> List[ProblemStarterCodeIn]:
     ]
 
 @router.post("/", response_model=ProblemOut)
-def create_problem(data: ProblemIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def create_problem(data: ProblemIn, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
         tags = db.query(Tag).filter(Tag.id.in_(data.tag_ids)).all()
         problem = Problem(
@@ -181,7 +181,7 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{problem_id}", response_model=ProblemOut)
-def update_problem(problem_id: int, data: ProblemIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def update_problem(problem_id: int, data: ProblemIn, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
         problem = db.get(Problem, problem_id)
         if not problem:
@@ -218,7 +218,7 @@ def update_problem(problem_id: int, data: ProblemIn, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{problem_id}")
-def delete_problem(problem_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def delete_problem(problem_id: int, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
         problem = db.get(Problem, problem_id)
         if not problem:

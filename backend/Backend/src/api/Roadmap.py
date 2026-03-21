@@ -5,13 +5,13 @@ from typing import List
 from schemas import *
 from app.models import *
 from database import get_db
-from app.controllers.auth import get_current_user
+from app.controllers.auth import require_admin
 
 
 router = APIRouter()
 
 @router.post("/", response_model=RoadmapOut)
-def create_roadmap(data: RoadmapIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def create_roadmap(data: RoadmapIn, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
         roadmap = Roadmap(title=data.title)
         db.add(roadmap)
@@ -39,9 +39,9 @@ def list_roadmaps(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{roadmap_id}", response_model=RoadmapOut)
-def update_roadmap(roadmap_id: int, data: RoadmapIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def update_roadmap(roadmap_id: int, data: RoadmapIn, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
-        roadmap = db.query(Roadmap).get(roadmap_id)
+        roadmap = db.get(Roadmap, roadmap_id)
         if not roadmap:
             raise HTTPException(status_code=404, detail="Roadmap not found")
 
@@ -61,9 +61,9 @@ def update_roadmap(roadmap_id: int, data: RoadmapIn, db: Session = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{roadmap_id}")
-def delete_roadmap(roadmap_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def delete_roadmap(roadmap_id: int, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
-        roadmap = db.query(Roadmap).get(roadmap_id)
+        roadmap = db.get(Roadmap, roadmap_id)
         if not roadmap:
             raise HTTPException(status_code=404, detail="Roadmap not found")
         db.delete(roadmap)

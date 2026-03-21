@@ -1,10 +1,15 @@
 import pytest
 
+from app.models import User
 from tests.test_auth import _register_user, _login_user
 
 
-def _auth_headers(client):
+def _auth_headers(client, db_session):
     _register_user(client, email="submit@example.com")
+    user = db_session.query(User).filter(User.email == "submit@example.com").first()
+    user.is_admin = True
+    db_session.commit()
+
     login = _login_user(client, email="submit@example.com")
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -30,8 +35,8 @@ def _create_problem(client, headers):
 
 
 @pytest.mark.skip(reason="Relies on third-party execution service (piston) currently offline.")
-def test_submit_submission(monkeypatch, client):
-    headers = _auth_headers(client)
+def test_submit_submission(monkeypatch, client, db_session):
+    headers = _auth_headers(client, db_session)
     problem_id = _create_problem(client, headers)
 
     def fake_execute_test_cases(language, source_code, test_cases):

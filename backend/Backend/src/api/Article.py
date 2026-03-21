@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
-from app.controllers.auth import get_current_user
+from app.controllers.auth import require_admin
 from app.models import Article
 from schemas import ArticleIn, ArticleOut
 
@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post("/", response_model=ArticleOut)
-def create_article(data: ArticleIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def create_article(data: ArticleIn, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
         article = Article(
             title=data.title,
@@ -44,7 +44,7 @@ def list_articles(db: Session = Depends(get_db), category: Optional[str] = None)
 @router.get("/{article_id}", response_model=ArticleOut)
 def get_article(article_id: int, db: Session = Depends(get_db)):
     try:
-        article = db.query(Article).get(article_id)
+        article = db.get(Article, article_id)
         if not article:
             raise HTTPException(status_code=404, detail="Article not found")
         return article
@@ -53,9 +53,9 @@ def get_article(article_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{article_id}", response_model=ArticleOut)
-def update_article(article_id: int, data: ArticleIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def update_article(article_id: int, data: ArticleIn, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
-        article = db.query(Article).get(article_id)
+        article = db.get(Article, article_id)
         if not article:
             raise HTTPException(status_code=404, detail="Article not found")
         article.title = data.title
@@ -74,9 +74,9 @@ def update_article(article_id: int, data: ArticleIn, db: Session = Depends(get_d
 
 
 @router.delete("/{article_id}")
-def delete_article(article_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def delete_article(article_id: int, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
-        article = db.query(Article).get(article_id)
+        article = db.get(Article, article_id)
         if not article:
             raise HTTPException(status_code=404, detail="Article not found")
         db.delete(article)

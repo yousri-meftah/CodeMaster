@@ -1,15 +1,20 @@
+from app.models import User
 from tests.test_auth import _register_user, _login_user
 
 
-def _auth_headers(client):
+def _auth_headers(client, db_session):
     _register_user(client, email="problem@example.com")
+    user = db_session.query(User).filter(User.email == "problem@example.com").first()
+    user.is_admin = True
+    db_session.commit()
+
     login = _login_user(client, email="problem@example.com")
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_problem_create_and_list(client):
-    headers = _auth_headers(client)
+def test_problem_create_and_list(client, db_session):
+    headers = _auth_headers(client, db_session)
 
     tag_resp = client.post("/tag/", json={"name": "arrays"}, headers=headers)
     assert tag_resp.status_code == 200

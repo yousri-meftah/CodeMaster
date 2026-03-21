@@ -5,12 +5,12 @@ from typing import List
 from schemas import *
 from app.models import *
 from database import get_db
-from app.controllers.auth import get_current_user
+from app.controllers.auth import require_user
 
 router = APIRouter()
 
 @router.post("/", response_model=CommentOut)
-def post_comment(data: CommentIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def post_comment(data: CommentIn, db: Session = Depends(get_db), user=Depends(require_user)):
     try:
         comment = Comment(user_id=user.id, problem_id=data.problem_id, content=data.content)
         db.add(comment)

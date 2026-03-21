@@ -5,12 +5,12 @@ from typing import List
 from schemas import *
 from app.models import *
 from database import get_db
-from app.controllers.auth import get_current_user
+from app.controllers.auth import require_admin
 
 router = APIRouter()
 
 @router.post("/", response_model=TagOut)
-def create_tag(data: TagIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def create_tag(data: TagIn, db: Session = Depends(get_db), user=Depends(require_admin)):
     try:
         tag = Tag(name=data.name)
         db.add(tag)

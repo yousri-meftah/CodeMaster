@@ -5,12 +5,12 @@ from typing import List
 from schemas import *
 from app.models import *
 from database import get_db 
-from app.controllers.auth import get_current_user
+from app.controllers.auth import require_user
 
 router = APIRouter()
 
 @router.post("/", response_model=SavedSolutionOut)
-def save_solution(data: SavedSolutionIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def save_solution(data: SavedSolutionIn, db: Session = Depends(get_db), user=Depends(require_user)):
     try:
         existing = db.query(SavedSolution).filter_by(user_id=user.id, problem_id=data.problem_id).first()
         if existing:
@@ -30,7 +30,7 @@ def save_solution(data: SavedSolutionIn, db: Session = Depends(get_db), user=Dep
 def get_my_solution_for_problem(
     problem_id: int,
     db: Session = Depends(get_db),
-    user=Depends(get_current_user)
+    user=Depends(require_user)
 ):
     try:
         solution = (

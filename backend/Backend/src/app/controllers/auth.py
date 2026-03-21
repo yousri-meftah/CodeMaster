@@ -1,5 +1,5 @@
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from starlette.authentication import AuthCredentials, UnauthenticatedUser
 from database import get_db
 from sqlalchemy.orm import Session
@@ -22,6 +22,20 @@ def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends
     id = int(user_id)
 
     user = db.query(User).filter(User.id == id).first()
+    return user
+
+
+def require_user(user=Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    return user
+
+
+def require_admin(user=Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    if not getattr(user, "is_admin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     return user
 
 
