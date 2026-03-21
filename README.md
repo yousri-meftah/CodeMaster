@@ -1,57 +1,33 @@
-# 🧠 Personal Coding Platform
+# CodeMaster
 
-Full‑stack coding practice platform inspired by LeetCode, built for structured learning, submissions, and analytics.
+Full-stack coding practice platform. This repo focuses on a FastAPI backend with PostgreSQL, Alembic migrations, and JWT auth.
 
-## ✨ Core Features
-- Problem list with pagination, difficulty filters, tags, daily problem
-- Problem detail page with description, examples, constraints, starter code
-- Code execution (Piston) + Algo runner (custom `/execute`)
-- Run vs Submit flows with verdict + per‑case results
-- Submission history tab per problem
-- Activity heatmap + solved list derived from accepted submissions
-- Theme system + responsive UI
+## Backend (production-ready focus)
+Location: `backend/Backend/`
 
-## 🖥️ Frontend (client/)
-React + Vite UI that includes:
-- Problems list + search + pagination
-- Problem detail with editor, run/submit, submissions tab
-- Profile with activity heatmap and solved list
-- Explore/Articles and Roadmap pages
+### Run (dev)
+Use the dev compose:
+```bash
+cd backend
+docker compose -f docker-compose.dev.yml up --build
+```
 
-Editor preferences:
-- Language preference saved in localStorage
-- Code saved per problem + language in localStorage
+### Run (prod)
+Use the prod compose:
+```bash
+cd backend
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
-## 🚀 Backend (backend/Backend/)
-FastAPI + PostgreSQL + Alembic.
+### Tests (API-level)
+```bash
+cd backend/Backend
+python -m pytest
+```
 
-Key modules:
-- `api/Problem.py` — problems + pagination + daily problem
-- `api/Submission.py` — run/submit + submission history
-- `api/user.py` — activity + solved problems
-- `api/Progress.py` — solved count + streak
-- `app/services/piston.py` — execution abstraction
+## CI
+GitHub Actions runs backend tests only:
+`.github/workflows/backend-ci.yml`
 
-## 🔌 Execution
-- Piston for standard languages (`PISTON_URL`)
-- Algo executor for custom language (`ALGO_EXECUTE_URL`)
-
-## 🧭 Important Endpoints (Backend)
-- `GET /problem` (paginated)
-- `GET /problem/{id}`
-- `GET /problem/daily`
-- `POST /submission/run`
-- `POST /submission/submit`
-- `GET /submission/problem/{problem_id}` (user history)
-- `GET /user/activity`
-- `GET /user/solutions`
-- `GET /progress`
-
-## 🗂️ Documentation
-Project docs are kept in `/docs` but **ignored by git**.  
-Update and use them locally for AI handoff and architecture notes.
-
-## 🛠️ Status
-- Submissions are stored only on submit (run is not persisted).
-- Activity + solved list are computed from accepted submissions.
-- Judge0 integration is planned next.
+## Notes
+Docs live in `docs/` and are kept concise.
