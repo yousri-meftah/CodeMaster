@@ -76,13 +76,13 @@ def test_saved_solution_upsert(client, db_session):
     ).json()
 
     first = client.post(
-        "/saved-solution/",
+        "/SavedSolution/",
         json={"problem_id": problem["id"], "code": "a"},
         headers=headers,
     )
     assert first.status_code == 200
     second = client.post(
-        "/saved-solution/",
+        "/SavedSolution/",
         json={"problem_id": problem["id"], "code": "b"},
         headers=headers,
     )
