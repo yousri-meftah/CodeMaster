@@ -1,18 +1,16 @@
-import { useMemo, useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { interviewsAPI, type InterviewCandidate, type InterviewCandidatesPage, type InterviewDetail, type InterviewLog, type InterviewSubmission } from "@/services/api";
+import { interviewsAPI, type InterviewCandidatesPage, type InterviewDetail } from "@/services/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Clock3, Copy, Loader2, ShieldAlert, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Clock3, Copy, Loader2, UserPlus, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -29,28 +27,13 @@ const statusTone = (status: string) => {
   }
 };
 
-const formatEventLabel = (eventType: string) => {
-  switch (eventType) {
-    case "tab_hidden":
-      return "Candidate left or hid the interview tab";
-    case "window_blur":
-      return "Candidate switched focus to another window/app";
-    case "copy":
-      return "Candidate copied content during the interview";
-    case "paste":
-      return "Candidate pasted content during the interview";
-    default:
-      return eventType;
-  }
-};
-
 const InterviewDetailPage = () => {
   const params = useParams<{ id: string }>();
   const interviewId = Number(params.id);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isAddCandidateOpen, setIsAddCandidateOpen] = useState(false);
   const [candidateEmails, setCandidateEmails] = useState("");
-  const [selectedCandidateId, setSelectedCandidateId] = useState<number | null>(null);
   const [candidatePage, setCandidatePage] = useState(1);
   const [candidateStatus, setCandidateStatus] = useState<string>("all");
   const [candidateSearch, setCandidateSearch] = useState("");
@@ -77,18 +60,6 @@ const InterviewDetailPage = () => {
   const totalCandidates = candidatesPage?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCandidates / (candidatesPage?.page_size ?? 20)));
 
-  const { data: submissions = [] } = useQuery<InterviewSubmission[]>({
-    queryKey: ["interview-submissions", interviewId],
-    queryFn: () => interviewsAPI.getSubmissions(interviewId),
-    enabled: !Number.isNaN(interviewId),
-  });
-
-  const { data: logs = [] } = useQuery<InterviewLog[]>({
-    queryKey: ["interview-logs", interviewId],
-    queryFn: () => interviewsAPI.getLogs(interviewId),
-    enabled: !Number.isNaN(interviewId),
-  });
-
   const addCandidatesMutation = useMutation({
     mutationFn: () => {
       const emails = candidateEmails
@@ -107,19 +78,6 @@ const InterviewDetailPage = () => {
       toast({ title: "Add candidate failed", description: error.message, variant: "destructive" });
     },
   });
-
-  const selectedCandidate = useMemo(
-    () => candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null,
-    [candidates, selectedCandidateId],
-  );
-  const candidateSubmissions = useMemo(
-    () => submissions.filter((submission) => submission.candidate_id === selectedCandidateId),
-    [selectedCandidateId, submissions],
-  );
-  const candidateLogs = useMemo(
-    () => logs.filter((log) => log.candidate_id === selectedCandidateId),
-    [logs, selectedCandidateId],
-  );
 
   useEffect(() => {
     setCandidatePage(1);
@@ -185,7 +143,7 @@ const InterviewDetailPage = () => {
                 <Users className="h-5 w-5" />
                 Candidates
               </CardTitle>
-              <CardDescription>Click a candidate to open their activity panel and review progress.</CardDescription>
+              <CardDescription>Open a dedicated review page for logs, saved code, and candidate assessment.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
@@ -218,7 +176,7 @@ const InterviewDetailPage = () => {
                       <TableHead>Candidate</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Started</TableHead>
-                      <TableHead className="text-right">Link</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -226,7 +184,7 @@ const InterviewDetailPage = () => {
                       <TableRow
                         key={candidate.id}
                         className="cursor-pointer"
-                        onClick={() => setSelectedCandidateId(candidate.id)}
+                        onClick={() => setLocation(`/interviews/${interviewId}/candidates/${candidate.id}`)}
                       >
                         <TableCell>
                           <div>
@@ -243,17 +201,28 @@ const InterviewDetailPage = () => {
                           {candidate.started_at ? new Date(candidate.started_at).toLocaleString() : "Not started"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              copyCandidateLink(candidate.token);
-                            }}
-                          >
-                            <Copy className="mr-2 h-4 w-4" />
-                            Copy
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                copyCandidateLink(candidate.token);
+                              }}
+                            >
+                              <Copy className="mr-2 h-4 w-4" />
+                              Copy
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setLocation(`/interviews/${interviewId}/candidates/${candidate.id}`);
+                              }}
+                            >
+                              Review
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -351,93 +320,6 @@ const InterviewDetailPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Sheet open={Boolean(selectedCandidate)} onOpenChange={(open) => !open && setSelectedCandidateId(null)}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
-          {selectedCandidate && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{selectedCandidate.email}</SheetTitle>
-                <SheetDescription>
-                  Review status, saved code, and activity logs for this candidate.
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="mt-6 space-y-6">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
-                    <div className="mt-2">
-                      <Badge variant={statusTone(selectedCandidate.status) as "default" | "secondary" | "destructive" | "outline"}>
-                        {selectedCandidate.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Started</p>
-                    <p className="mt-2 text-sm">{selectedCandidate.started_at ? new Date(selectedCandidate.started_at).toLocaleString() : "Not started"}</p>
-                  </div>
-                  <div className="rounded-lg border p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Submitted</p>
-                    <p className="mt-2 text-sm">{selectedCandidate.submitted_at ? new Date(selectedCandidate.submitted_at).toLocaleString() : "Not submitted"}</p>
-                  </div>
-                </div>
-
-                <section className="space-y-3">
-                  <h3 className="flex items-center gap-2 text-lg font-semibold">
-                    <ShieldAlert className="h-5 w-5" />
-                    Activity Logs
-                  </h3>
-                  {candidateLogs.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                      No logs yet. If the candidate has not started or triggered any activity event, nothing appears here.
-                    </div>
-                  ) : (
-                    candidateLogs.map((log) => (
-                      <div key={log.id} className="rounded-lg border p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-medium">{formatEventLabel(log.event_type)}</p>
-                            <p className="text-xs text-muted-foreground">{log.event_type}</p>
-                          </div>
-                          <Badge variant="outline">{log.timestamp ? new Date(log.timestamp).toLocaleString() : "event"}</Badge>
-                        </div>
-                        {log.meta && (
-                          <pre className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">{JSON.stringify(log.meta, null, 2)}</pre>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-lg font-semibold">Saved Submissions</h3>
-                  {candidateSubmissions.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                      No saved code yet. If the candidate has not started or has not saved anything, this stays empty.
-                    </div>
-                  ) : (
-                    candidateSubmissions.map((submission) => (
-                      <div key={submission.id} className="rounded-lg border p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-medium">Problem #{submission.problem_id}</p>
-                            <p className="text-xs text-muted-foreground">{submission.language}</p>
-                          </div>
-                          <Badge variant="outline">
-                            {submission.created_at ? new Date(submission.created_at).toLocaleString() : "saved"}
-                          </Badge>
-                        </div>
-                        <pre className="mt-3 overflow-x-auto rounded bg-muted p-3 text-xs">{submission.code}</pre>
-                      </div>
-                    ))
-                  )}
-                </section>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 };

@@ -292,6 +292,13 @@ class InterviewCandidatesPageOut(BaseModel):
     page_size: int
 
 
+class InterviewCandidateReviewOut(InterviewCandidateOut):
+    submission_count: int
+    log_count: int
+    completed_problem_count: int
+    risk_score: int
+
+
 class InterviewSubmissionOut(BaseModel):
     id: int
     candidate_id: int
@@ -299,7 +306,9 @@ class InterviewSubmissionOut(BaseModel):
     problem_id: int
     language: str
     code: str
+    change_summary: Optional[dict] = None
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class InterviewActivityLogOut(BaseModel):
@@ -333,6 +342,7 @@ class InterviewSaveIn(BaseModel):
     problem_id: int
     language: str
     code: str
+    change_summary: Optional[dict] = None
 
 
 class InterviewSubmitIn(BaseModel):
@@ -343,3 +353,7 @@ class InterviewLogIn(BaseModel):
     token: str
     event_type: str
     meta: Optional[dict] = None
+
+
+class InterviewCandidateStatusUpdateIn(BaseModel):
+    status: str

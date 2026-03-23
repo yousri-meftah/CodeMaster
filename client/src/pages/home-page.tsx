@@ -1,250 +1,233 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Problem, Article } from "@shared/schema";
-import { problemsAPI } from "@/services/api";
-import { ChevronRight, Code } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { ArrowRight, CheckCircle2, Code2, Sparkles, Trophy, Users, Zap } from "lucide-react";
 
 const HomePage = () => {
-  // Fetch problem categories
-  const { data: problemsPage } = useQuery<{ items: Problem[]; total: number; page: number; page_size: number }>({
-    queryKey: ["problems"],
-    queryFn: () => problemsAPI.getAllProblems(),
-  });
-
-  const { data: dailyProblem } = useQuery<Problem>({
-    queryKey: ["daily-problem"],
-    queryFn: () => problemsAPI.getDailyProblem(),
-  });
-
-  // Fetch latest articles
-  const { data: articles } = useQuery<Article[]>({
-    queryKey: ["/articles"],
-  });
-
-  // Extract categories from problems data
-  const categories = problemsPage?.items
-    ? [...new Set(problemsPage.items.flatMap(problem => problem.tags || []))]
-          .slice(0, 4)
-          .map(category => {
-            const categoryProblems = problemsPage.items.filter(p => p.tags?.includes(category));
-            return {
-              name: formatCategoryName(category),
-              slug: category,
-              count: categoryProblems.length,
-              description: getCategoryDescription(category)
-            };
-          })
-    : [];
-
-  // Get latest 3 articles
-  const latestArticles = articles ? articles.slice(0, 3) : [];
-
-  function formatCategoryName(slug: string): string {
-    return slug
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  }
-
-  function getCategoryDescription(category: string): string {
-    const descriptions: Record<string, string> = {
-      'arrays': 'Two pointers, sliding window, and more',
-      'linked-list': 'Reversing, detecting cycles, and manipulation',
-      'trees': 'BFS, DFS, and tree manipulations',
-      'graphs': 'Graph traversal, shortest path algorithms',
-      'dynamic-programming': 'Memoization, tabulation, and subproblems',
-      'string': 'String manipulation, pattern matching',
-      'binary-search': 'Logarithmic search techniques',
-      'hash-table': 'Efficient lookups and collision handling',
-      'sorting': 'Comparison-based and linear sorting algorithms',
-      'greedy': 'Making locally optimal choices',
-      'backtracking': 'Building solutions incrementally',
-      'sliding-window': 'Fixed and variable size window techniques',
-      'recursion': 'Breaking problems into smaller subproblems',
-      'math': 'Mathematical concepts and number theory'
-    };
-    
-    return descriptions[category] || 'Algorithmic problem solving techniques';
-  }
-
-  function formatDate(date: Date): string {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  }
+  const { user } = useAuth();
+  const recruiterHref = user ? "/interviews" : "/auth";
 
   return (
-    <div className="space-y-10">
-      {/* Hero Section */}
-      <section className="py-12 md:py-20 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold mb-6">Master Coding Interviews</h1>
-        <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-8">
-          Structured algorithm practice, curated roadmaps, and interview preparation all in one place.
-        </p>
-        <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-          <Link href="/problems">
-            <Button size="lg" className="px-6">
-              Start Practicing
-            </Button>
-          </Link>
-          <Link href="/roadmap">
-            <Button size="lg" variant="outline" className="px-6">
-              View Roadmaps
-            </Button>
-          </Link>
-        </div>
-      </section>
+    <div className="space-y-20 pb-10">
+      <section className="relative overflow-hidden rounded-[28px] border border-border/60 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.18),transparent_28%),radial-gradient(circle_at_bottom_right,hsl(var(--secondary)/0.18),transparent_30%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--card)))] px-6 py-14 shadow-2xl lg:px-12">
+        <div className="absolute inset-0 opacity-10 [background-image:radial-gradient(circle_at_1px_1px,hsl(var(--foreground)/0.28)_1px,transparent_0)] [background-size:26px_26px]" />
+        <div className="relative grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="space-y-8">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/40 px-4 py-2 text-xs font-bold uppercase tracking-[0.25em] text-primary">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              Architecting The Future
+            </div>
 
-      {/* Stats Section */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6 py-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-primary mb-2">300+</p>
-            <p className="text-muted-foreground">Coding Problems</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-emerald-500 mb-2">25+</p>
-            <p className="text-muted-foreground">Study Guides</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-3xl font-bold text-purple-500 mb-2">10+</p>
-            <p className="text-muted-foreground">Interview Roadmaps</p>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Daily Problem */}
-      <section className="py-6">
-        <Card className="border-primary/20">
-          <CardContent className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <p className="text-sm uppercase tracking-wide text-muted-foreground mb-2">Daily Problem</p>
-              <h2 className="text-2xl font-bold">
-                {dailyProblem?.title ?? "Loading..."}
-              </h2>
-              <p className="text-muted-foreground">
-                {dailyProblem
-                  ? `Difficulty: ${dailyProblem.difficulty}`
-                  : "Fetching today’s challenge"}
+            <div className="space-y-5">
+              <h1 className="font-headline text-5xl font-extrabold leading-[0.95] tracking-tight text-foreground md:text-7xl">
+                Engineering
+                <br />
+                <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">Excellence</span>
+                <br />
+                Through Code.
+              </h1>
+              <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground lg:text-xl">
+                The elite darkroom for developers to sharpen their craft and for recruiters to source technical mastery.
               </p>
             </div>
-            <Link href={dailyProblem ? `/problems/${dailyProblem.id}` : "/problems"}>
-              <Button size="lg">Solve Now</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </section>
 
-      {/* Categories Section */}
-      <section className="py-6">
-        <h2 className="text-2xl font-bold mb-6">Popular Categories</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {categories.map((category) => (
-            <Link key={category.slug} href={`/problems?category=${category.slug}`}>
-              <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-lg">{category.name}</h3>
-                    <span className="text-primary">
-                      <ChevronRight className="h-5 w-5" />
-                    </span>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/problems">
+                <Button className="h-13 rounded-md px-8 text-base font-bold shadow-[0_10px_30px_hsl(var(--primary)/0.25)]">
+                  Start Coding
+                </Button>
+              </Link>
+              <Link href={recruiterHref}>
+                <Button variant="outline" className="h-13 rounded-md px-8 text-base font-bold">
+                  For Recruiters
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute -inset-3 rounded-3xl bg-gradient-to-r from-primary/15 to-emerald-400/10 blur-2xl" />
+            <Card className="relative overflow-hidden rounded-2xl border-border/60 bg-card/85 shadow-2xl backdrop-blur">
+              <div className="flex items-center justify-between border-b border-border/50 bg-background/60 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-rose-400/50" />
+                    <span className="h-3 w-3 rounded-full bg-amber-400/50" />
+                    <span className="h-3 w-3 rounded-full bg-emerald-400/50" />
                   </div>
-                  <p className="text-muted-foreground text-sm mb-3">{category.description}</p>
-                  <div className="flex items-center text-sm">
-                    <span className="text-muted-foreground">
-                      <Code className="h-4 w-4 inline mr-1" /> {category.count} problems
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* Latest Articles Section */}
-      <section className="py-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Latest Articles</h2>
-          <Link href="/explore" className="text-primary hover:underline flex items-center">
-            View All <ChevronRight className="h-4 w-4 ml-1" />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {latestArticles.map((article) => (
-            <Card key={article.id} className="overflow-hidden h-full flex flex-col">
-              <div className="aspect-video bg-muted relative">
-                {article.imageUrl && (
-                  <div
-                    className="absolute inset-0 bg-center bg-cover"
-                    style={{ backgroundImage: `url(${article.imageUrl})` }}
-                  />
-                )}
-              </div>
-              <CardContent className="p-5 flex-1 flex flex-col">
-                <div className="flex items-center text-sm text-muted-foreground mb-3">
-                  <span className="flex items-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 mr-1"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    {article.createdAt ? formatDate(article.createdAt) : ""}
-                  </span>
-                  <span className="mx-2">•</span>
-                  <span className="flex items-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 mr-1"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    {article.readTime} min read
-                  </span>
+                  <span className="ml-4 font-mono text-[11px] text-muted-foreground">solve_labyrinth.py</span>
                 </div>
-                <h3 className="font-bold text-lg mb-2">{article.title}</h3>
-                <p className="text-muted-foreground text-sm mb-4 flex-1">
-                  {article.summary}
-                </p>
-                <Link
-                  href={`/explore/${article.id}`}
-                  className="text-primary hover:underline mt-auto inline-flex items-center"
-                >
-                  Read Article <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">
+                  <Zap className="h-3.5 w-3.5" />
+                  Run Code
+                </div>
+              </div>
+
+              <CardContent className="space-y-1 bg-background/80 px-6 py-6 font-mono text-sm leading-7 text-foreground">
+                <div className="flex gap-4"><span className="select-none text-muted-foreground/50">01</span><span><span className="text-blue-400">def</span> <span className="text-emerald-400">find_optimal_path</span>(graph, start):</span></div>
+                <div className="flex gap-4"><span className="select-none text-muted-foreground/50">02</span><span className="pl-4 text-muted-foreground">&quot;&quot;&quot;Implementation of Kinetic Search&quot;&quot;&quot;</span></div>
+                <div className="flex gap-4"><span className="select-none text-muted-foreground/50">03</span><span className="pl-4">queue = [(0, start, [])]</span></div>
+                <div className="flex gap-4"><span className="select-none text-muted-foreground/50">04</span><span className="pl-4">visited = set()</span></div>
+                <div className="flex gap-4"><span className="select-none text-muted-foreground/50">05</span><span className="pl-4">&nbsp;</span></div>
+                <div className="flex gap-4"><span className="select-none text-muted-foreground/50">06</span><span className="pl-4"><span className="text-blue-400">while</span> queue:</span></div>
+                <div className="flex gap-4"><span className="select-none text-muted-foreground/50">07</span><span className="pl-8">(cost, node, path) = heappop(queue)</span></div>
+                <div className="mt-4 h-6 w-0.5 animate-pulse bg-primary" />
               </CardContent>
+
+              <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                <div className="flex gap-4">
+                  <span>Ln 7, Col 42</span>
+                  <span>UTF-8</span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  0 Errors
+                </div>
+              </div>
             </Card>
-          ))}
+
+            <div className="absolute -bottom-6 -left-4 rounded-xl border border-border/60 bg-card/90 p-4 shadow-xl backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-emerald-400/10 p-2 text-emerald-400">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Global Rank</div>
+                  <div className="font-headline text-2xl font-black text-foreground">#1,248</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-8">
+        <div className="space-y-3">
+          <h2 className="font-headline text-4xl font-extrabold tracking-tight text-foreground">Precision Tools for Modern Architects</h2>
+          <div className="h-1 w-14 bg-primary" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+          <Card className="group relative overflow-hidden border-border/60 bg-card md:col-span-8">
+            <div className="absolute inset-0 opacity-20 transition-transform duration-700 group-hover:scale-105 [background-image:linear-gradient(120deg,hsl(var(--primary)/0.16),transparent),radial-gradient(circle_at_top_left,hsl(var(--secondary)/0.12),transparent_35%)]" />
+            <CardContent className="relative flex min-h-[320px] flex-col justify-end p-10">
+              <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <TerminalSquare className="h-7 w-7" />
+              </div>
+              <h3 className="font-headline text-3xl font-bold text-foreground">Immersive Editor</h3>
+              <p className="mt-3 max-w-md text-base leading-relaxed text-muted-foreground">
+                Our darkroom environment minimizes distractions. Features real-time syntax linting, VIM keybindings, and low-latency execution.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 bg-card md:col-span-4">
+            <CardContent className="flex h-full flex-col justify-between p-8">
+              <div>
+                <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-400">
+                  <Trophy className="h-6 w-6" />
+                </div>
+                <h3 className="font-headline text-2xl font-bold text-foreground">Global Contests</h3>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  Compete against the world&apos;s best in weekly high-stakes architectural challenges. Rise through the ranks of the Elite Architects.
+                </p>
+              </div>
+              <div className="mt-8 flex -space-x-3">
+                {["A", "B", "C"].map((entry, index) => (
+                  <div key={entry} className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-card text-xs font-bold ${index === 0 ? "bg-amber-200 text-slate-900" : index === 1 ? "bg-sky-200 text-slate-900" : "bg-emerald-200 text-slate-900"}`}>
+                    {entry}
+                  </div>
+                ))}
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-card bg-muted text-[10px] font-bold text-muted-foreground">+2.4k</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-primary border-border/60 bg-card md:col-span-5">
+            <CardContent className="flex h-full flex-col justify-center p-8">
+              <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-400">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <h3 className="font-headline text-2xl font-bold text-foreground">Smart Interviewing</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                AI-assisted proctoring and behavioral analysis for recruiters. Move beyond standard challenge flows into higher-fidelity technical review.
+              </p>
+              <Link href="/interviews" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
+                Learn more
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 bg-black text-white md:col-span-7">
+            <CardContent className="grid h-full grid-cols-3 items-center gap-8 p-8">
+              <div className="text-center">
+                <div className="font-headline text-4xl font-black">15M+</div>
+                <div className="mt-2 text-[11px] uppercase tracking-[0.25em] text-white/35">Solutions</div>
+              </div>
+              <div className="border-x border-white/10 text-center">
+                <div className="font-headline text-4xl font-black text-emerald-300">99.9%</div>
+                <div className="mt-2 text-[11px] uppercase tracking-[0.25em] text-white/35">Uptime</div>
+              </div>
+              <div className="text-center">
+                <div className="font-headline text-4xl font-black text-blue-300">500+</div>
+                <div className="mt-2 text-[11px] uppercase tracking-[0.25em] text-white/35">Partners</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section>
+        <div className="overflow-hidden rounded-[24px] border border-border/60 bg-card">
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            <div className="border-b border-border/60 p-12 lg:border-b-0 lg:border-r lg:p-20">
+              <div className="mb-12 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Code2 className="h-8 w-8" />
+              </div>
+              <h3 className="font-headline text-4xl font-bold text-foreground">For Developers</h3>
+              <div className="mt-8 space-y-4 text-muted-foreground">
+                <div className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 text-emerald-400" />Structured learning paths</div>
+                <div className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 text-emerald-400" />Real-time peer collaboration</div>
+                <div className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 text-emerald-400" />Direct pipeline to Top Tier tech</div>
+              </div>
+              <Link href="/auth">
+                <Button variant="outline" className="mt-10 h-14 w-full text-base font-bold">
+                  Create Account
+                </Button>
+              </Link>
+            </div>
+
+            <div className="p-12 lg:p-20">
+              <div className="mb-12 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-400">
+                <Users className="h-8 w-8" />
+              </div>
+              <h3 className="font-headline text-4xl font-bold text-foreground">For Recruiters</h3>
+              <div className="mt-8 space-y-4 text-muted-foreground">
+                <div className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 text-primary" />Verified technical rankings</div>
+                <div className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 text-primary" />High-fidelity interview sandbox</div>
+                <div className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 text-primary" />Advanced talent analytics</div>
+              </div>
+              <Link href={recruiterHref}>
+                <Button className="mt-10 h-14 w-full text-base font-bold">
+                  {user ? "Open Recruiter Workspace" : "Create Recruiter Account"}
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     </div>
   );
 };
+
+const TerminalSquare = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="m7 9 3 3-3 3" />
+    <path d="M13 15h4" />
+  </svg>
+);
 
 export default HomePage;

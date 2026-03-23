@@ -12,6 +12,8 @@ from database import get_db
 from schemas import (
     InterviewCandidateBatchIn,
     InterviewCandidateOut,
+    InterviewCandidateReviewOut,
+    InterviewCandidateStatusUpdateIn,
     InterviewCandidatesPageOut,
     InterviewDetailOut,
     InterviewIn,
@@ -21,6 +23,8 @@ from schemas import (
 )
 
 router = APIRouter()
+
+ALLOWED_CANDIDATE_STATUSES = {"pending", "started", "submitted", "expired"}
 
 
 def _load_interview_detail(db: Session, interview_id: int) -> Interview | None:
@@ -61,6 +65,52 @@ def _serialize_interview(interview: Interview) -> dict:
             }
             for link in sorted(interview.interview_problems, key=lambda item: item.order)
         ],
+    }
+
+
+def _load_candidate_or_404(db: Session, interview_id: int, candidate_id: int) -> InterviewCandidate:
+    candidate = (
+        db.query(InterviewCandidate)
+        .options(
+            joinedload(InterviewCandidate.interview).joinedload(Interview.interview_problems),
+            joinedload(InterviewCandidate.submissions),
+            joinedload(InterviewCandidate.activity_logs),
+        )
+        .filter(
+            InterviewCandidate.id == candidate_id,
+            InterviewCandidate.interview_id == interview_id,
+        )
+        .first()
+    )
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    return candidate
+
+
+def _serialize_candidate_review(candidate: InterviewCandidate) -> dict:
+    risk_score = 0
+    for log in candidate.activity_logs:
+        if log.event_type in {"tab_hidden", "window_blur"}:
+            risk_score += 3
+        elif log.event_type in {"copy", "paste"}:
+            risk_score += 2
+        else:
+            risk_score += 1
+
+    completed_problem_count = len({submission.problem_id for submission in candidate.submissions})
+
+    return {
+        "id": candidate.id,
+        "email": candidate.email,
+        "token": candidate.token,
+        "status": candidate.status,
+        "started_at": candidate.started_at,
+        "submitted_at": candidate.submitted_at,
+        "last_seen_at": candidate.last_seen_at,
+        "submission_count": len(candidate.submissions),
+        "log_count": len(candidate.activity_logs),
+        "completed_problem_count": completed_problem_count,
+        "risk_score": risk_score,
     }
 
 
@@ -196,6 +246,113 @@ def list_candidates(
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
+@router.patch("/{interview_id}/candidates/{candidate_id}/status", response_model=InterviewCandidateOut)
+def update_candidate_status(
+    interview_id: int,
+    candidate_id: int,
+    payload: InterviewCandidateStatusUpdateIn,
+    db: Session = Depends(get_db),
+    user=Depends(require_recruiter),
+):
+    interview = load_interview_or_404(db, interview_id)
+    _ensure_owner_or_admin(interview, user)
+    candidate = (
+        db.query(InterviewCandidate)
+        .filter(
+            InterviewCandidate.id == candidate_id,
+            InterviewCandidate.interview_id == interview_id,
+        )
+        .first()
+    )
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+    next_status = (payload.status or "").strip().lower()
+    if next_status not in ALLOWED_CANDIDATE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid candidate status")
+
+    candidate.status = next_status
+    if next_status == "pending":
+        candidate.started_at = None
+        candidate.submitted_at = None
+    elif next_status == "started":
+        if not candidate.started_at:
+            candidate.started_at = candidate.created_at
+        candidate.submitted_at = None
+    else:
+        if not candidate.started_at:
+            candidate.started_at = candidate.created_at
+        if not candidate.submitted_at:
+            candidate.submitted_at = candidate.started_at
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
+@router.get("/{interview_id}/candidates/{candidate_id}", response_model=InterviewCandidateReviewOut)
+def get_candidate_review(
+    interview_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_recruiter),
+):
+    interview = load_interview_or_404(db, interview_id)
+    _ensure_owner_or_admin(interview, user)
+    candidate = _load_candidate_or_404(db, interview_id, candidate_id)
+    return _serialize_candidate_review(candidate)
+
+
+@router.get("/{interview_id}/candidates/{candidate_id}/submissions", response_model=list[InterviewSubmissionOut])
+def list_candidate_submissions(
+    interview_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_recruiter),
+):
+    interview = load_interview_or_404(db, interview_id)
+    _ensure_owner_or_admin(interview, user)
+    candidate = _load_candidate_or_404(db, interview_id, candidate_id)
+    rows = sorted(candidate.submissions, key=lambda row: ((row.updated_at or row.created_at), row.id), reverse=True)
+    return [
+        {
+            "id": row.id,
+            "candidate_id": row.candidate_id,
+            "candidate_email": candidate.email,
+            "problem_id": row.problem_id,
+            "language": row.language,
+            "code": row.code,
+            "change_summary": row.change_summary,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+        for row in rows
+    ]
+
+
+@router.get("/{interview_id}/candidates/{candidate_id}/logs", response_model=list[InterviewActivityLogOut])
+def list_candidate_logs(
+    interview_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_recruiter),
+):
+    interview = load_interview_or_404(db, interview_id)
+    _ensure_owner_or_admin(interview, user)
+    candidate = _load_candidate_or_404(db, interview_id, candidate_id)
+    rows = sorted(candidate.activity_logs, key=lambda row: (row.timestamp, row.id), reverse=True)
+    return [
+        {
+            "id": row.id,
+            "candidate_id": row.candidate_id,
+            "candidate_email": candidate.email,
+            "event_type": row.event_type,
+            "meta": row.meta,
+            "timestamp": row.timestamp,
+        }
+        for row in rows
+    ]
+
+
 @router.get("/{interview_id}/submissions", response_model=list[InterviewSubmissionOut])
 def list_interview_submissions(interview_id: int, db: Session = Depends(get_db), user=Depends(require_recruiter)):
     interview = load_interview_or_404(db, interview_id)
@@ -215,7 +372,9 @@ def list_interview_submissions(interview_id: int, db: Session = Depends(get_db),
             "problem_id": row.problem_id,
             "language": row.language,
             "code": row.code,
+            "change_summary": row.change_summary,
             "created_at": row.created_at,
+            "updated_at": row.updated_at,
         }
         for row in rows
     ]

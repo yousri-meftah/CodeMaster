@@ -170,6 +170,7 @@ def save_candidate_code(
     problem_id: int,
     language: str,
     code: str,
+    change_summary: dict | None = None,
 ) -> InterviewSubmission:
     validate_candidate_problem(candidate, problem_id)
     submission = (
@@ -183,12 +184,14 @@ def save_candidate_code(
     if submission:
         submission.language = language
         submission.code = code
+        submission.change_summary = change_summary
     else:
         submission = InterviewSubmission(
             candidate_id=candidate.id,
             problem_id=problem_id,
             language=language,
             code=code,
+            change_summary=change_summary,
         )
         db.add(submission)
     candidate.last_seen_at = _utcnow()

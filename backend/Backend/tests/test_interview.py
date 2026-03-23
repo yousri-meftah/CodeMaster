@@ -111,7 +111,13 @@ def test_candidate_session_save_submit_and_logs(client, db_session):
 
     save_resp = client.post(
         "/interview/save",
-        json={"token": token, "problem_id": problem_id, "language": "python", "code": "print(1)"},
+        json={
+            "token": token,
+            "problem_id": problem_id,
+            "language": "python",
+            "code": "print(1)",
+            "change_summary": {"inserted_lines": 1, "removed_lines": 0, "changed": True},
+        },
     )
     assert save_resp.status_code == 200
     saved = (
@@ -121,6 +127,7 @@ def test_candidate_session_save_submit_and_logs(client, db_session):
     )
     assert saved is not None
     assert saved.code == "print(1)"
+    assert saved.change_summary == {"inserted_lines": 1, "removed_lines": 0, "changed": True}
 
     log_resp = client.post(
         "/interview/log",
@@ -139,6 +146,84 @@ def test_candidate_session_save_submit_and_logs(client, db_session):
     logs_resp = client.get(f"/interviews/{interview_id}/logs", headers=recruiter_headers)
     assert logs_resp.status_code == 200
     assert logs_resp.json()[0]["event_type"] == "tab_blur"
+
+
+def test_recruiter_can_update_candidate_status(client, db_session):
+    recruiter_headers = _create_recruiter(client, db_session, email="recruiter-status@example.com")
+    admin_headers = _create_admin(client, db_session, email="admin-status@example.com")
+    problem_id = _create_problem(client, admin_headers, suffix="5")
+    interview_resp = _create_interview(client, recruiter_headers, [problem_id])
+    interview_id = interview_resp.json()["id"]
+
+    candidates_resp = client.post(
+        f"/interviews/{interview_id}/candidates",
+        json={"emails": ["status@example.com"]},
+        headers=recruiter_headers,
+    )
+    candidate_id = candidates_resp.json()[0]["id"]
+
+    resp = client.patch(
+        f"/interviews/{interview_id}/candidates/{candidate_id}/status",
+        json={"status": "submitted"},
+        headers=recruiter_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "submitted"
+
+
+def test_candidate_review_endpoints_are_scoped_to_one_candidate(client, db_session):
+    recruiter_headers = _create_recruiter(client, db_session, email="recruiter-review@example.com")
+    admin_headers = _create_admin(client, db_session, email="admin-review@example.com")
+    problem_id = _create_problem(client, admin_headers, suffix="6")
+    interview_resp = _create_interview(client, recruiter_headers, [problem_id])
+    interview_id = interview_resp.json()["id"]
+
+    candidates_resp = client.post(
+        f"/interviews/{interview_id}/candidates",
+        json={"emails": ["candidate-a@example.com", "candidate-b@example.com"]},
+        headers=recruiter_headers,
+    )
+    candidate_a = candidates_resp.json()[0]
+    candidate_b = candidates_resp.json()[1]
+
+    client.post(f"/interview/start?token={candidate_a['token']}")
+    client.post(
+        "/interview/save",
+        json={"token": candidate_a["token"], "problem_id": problem_id, "language": "python", "code": "print(1)"},
+    )
+    client.post(
+        "/interview/log",
+        json={"token": candidate_a["token"], "event_type": "copy", "meta": {"count": 1}},
+    )
+
+    review_resp = client.get(f"/interviews/{interview_id}/candidates/{candidate_a['id']}", headers=recruiter_headers)
+    assert review_resp.status_code == 200
+    assert review_resp.json()["id"] == candidate_a["id"]
+    assert review_resp.json()["submission_count"] == 1
+    assert review_resp.json()["log_count"] == 1
+
+    submissions_resp = client.get(
+        f"/interviews/{interview_id}/candidates/{candidate_a['id']}/submissions",
+        headers=recruiter_headers,
+    )
+    assert submissions_resp.status_code == 200
+    assert len(submissions_resp.json()) == 1
+    assert submissions_resp.json()[0]["candidate_id"] == candidate_a["id"]
+
+    logs_resp = client.get(
+        f"/interviews/{interview_id}/candidates/{candidate_a['id']}/logs",
+        headers=recruiter_headers,
+    )
+    assert logs_resp.status_code == 200
+    assert len(logs_resp.json()) == 1
+    assert logs_resp.json()[0]["candidate_id"] == candidate_a["id"]
+
+    other_resp = client.get(
+        f"/interviews/{interview_id}/candidates/{candidate_b['id']}/submissions",
+        headers=recruiter_headers,
+    )
+    assert other_resp.status_code == 200
+    assert other_resp.json() == []
 
 
 def test_expired_candidate_token_returns_gone(client, db_session):

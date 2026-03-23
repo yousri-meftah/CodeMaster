@@ -20,6 +20,7 @@ import ArticleDetailPage from "@/pages/article-detail-page";
 import InterviewsPage from "@/pages/interviews-page";
 import InterviewCreatePage from "@/pages/interview-create-page";
 import InterviewDetailPage from "@/pages/interview-detail-page";
+import InterviewCandidateReviewPage from "@/pages/interview-candidate-review-page";
 import InterviewEntryPage from "@/pages/interview-entry-page";
 import InterviewSessionPage from "@/pages/interview-session-page";
 import InterviewThankYouPage from "@/pages/interview-thank-you-page";
@@ -31,6 +32,7 @@ function Router() {
   const [location] = useLocation();
   const interviewToken = sessionStorage.getItem("interview_active_token");
   const isChallengePath = location.startsWith("/challenge");
+  const isProblemWorkspace = /^\/problems\/[^/]+$/.test(location);
 
   if (interviewToken && !isChallengePath) {
     return <Redirect to={`/challenge/session?token=${encodeURIComponent(interviewToken)}`} />;
@@ -39,7 +41,7 @@ function Router() {
   return (
     <div className="flex flex-col min-h-screen">
       {!isChallengePath && <Header />}
-      <main className={isChallengePath ? "flex-1" : "flex-1 container mx-auto px-4 py-6"}>
+      <main className={isChallengePath ? "flex-1" : isProblemWorkspace ? "flex-1 overflow-hidden" : "flex-1 container mx-auto px-4 py-6"}>
         <Switch>
           <Route path="/" component={HomePage} />
           <Route path="/problems" component={ProblemsPage} />
@@ -55,12 +57,13 @@ function Router() {
           <ProtectedRoute path="/profile" component={ProfilePage} />
           <ProtectedRoute path="/interviews" component={InterviewsPage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/new" component={InterviewCreatePage} requireRole="recruiter" />
+          <ProtectedRoute path="/interviews/:id/candidates/:candidateId" component={InterviewCandidateReviewPage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/:id" component={InterviewDetailPage} requireRole="recruiter" />
           <ProtectedRoute path="/admin" component={AdminPage} requireRole="admin" />
           <Route component={NotFound} />
         </Switch>
       </main>
-      {!isChallengePath && <Footer />}
+      {!isChallengePath && !isProblemWorkspace && <Footer />}
     </div>
   );
 }

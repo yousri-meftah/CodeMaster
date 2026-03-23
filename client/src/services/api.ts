@@ -134,6 +134,13 @@ export type InterviewCandidate = {
   last_seen_at?: string | null;
 };
 
+export type InterviewCandidateReview = InterviewCandidate & {
+  submission_count: number;
+  log_count: number;
+  completed_problem_count: number;
+  risk_score: number;
+};
+
 export type InterviewCandidatesPage = {
   items: InterviewCandidate[];
   total: number;
@@ -148,7 +155,9 @@ export type InterviewSubmission = {
   problem_id: number;
   language: string;
   code: string;
+  change_summary?: Record<string, unknown> | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type InterviewLog = {
@@ -473,6 +482,22 @@ export const interviewsAPI = {
     const response = await api.post(`/interviews/${id}/candidates`, { emails });
     return response.data;
   },
+  updateCandidateStatus: async (interviewId: number, candidateId: number, status: string): Promise<InterviewCandidate> => {
+    const response = await api.patch(`/interviews/${interviewId}/candidates/${candidateId}/status`, { status });
+    return response.data;
+  },
+  getCandidateReview: async (interviewId: number, candidateId: number): Promise<InterviewCandidateReview> => {
+    const response = await api.get(`/interviews/${interviewId}/candidates/${candidateId}`);
+    return response.data;
+  },
+  getCandidateSubmissions: async (interviewId: number, candidateId: number): Promise<InterviewSubmission[]> => {
+    const response = await api.get(`/interviews/${interviewId}/candidates/${candidateId}/submissions`);
+    return response.data;
+  },
+  getCandidateLogs: async (interviewId: number, candidateId: number): Promise<InterviewLog[]> => {
+    const response = await api.get(`/interviews/${interviewId}/candidates/${candidateId}/logs`);
+    return response.data;
+  },
   getCandidates: async (
     id: number,
     params?: { page?: number; page_size?: number; status?: string; search?: string },
@@ -499,7 +524,13 @@ export const interviewSessionAPI = {
     const response = await api.post("/interview/start", null, { params: { token } });
     return response.data;
   },
-  save: async (payload: { token: string; problem_id: number; language: string; code: string }): Promise<InterviewCandidate> => {
+  save: async (payload: {
+    token: string;
+    problem_id: number;
+    language: string;
+    code: string;
+    change_summary?: Record<string, unknown>;
+  }): Promise<InterviewCandidate> => {
     const response = await api.post("/interview/save", payload);
     return response.data;
   },

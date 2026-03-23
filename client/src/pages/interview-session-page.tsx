@@ -7,9 +7,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import ThemeToggle from "@/components/ThemeToggle";
 import { useToast } from "@/hooks/use-toast";
 import { interviewSessionAPI, problemsAPI, submissionsAPI, type CandidateSession, type SubmissionResult } from "@/services/api";
-import { Loader2, Play, Send, Timer } from "lucide-react";
+import {
+  AlertCircle,
+  Camera,
+  CheckCircle2,
+  Loader2,
+  Mic,
+  Play,
+  RotateCcw,
+  Send,
+  Settings2,
+  Timer,
+  XCircle,
+} from "lucide-react";
 
 type ProblemStarterCode = {
   id: number;
@@ -23,6 +37,13 @@ type ProblemDetail = {
   difficulty: string;
   description?: string | null;
   constraints?: string | null;
+  test_cases?: {
+    id: number;
+    input_text: string;
+    output_text: string;
+    is_sample: boolean;
+    order: number;
+  }[];
   starter_codes?: ProblemStarterCode[];
 };
 
@@ -36,6 +57,128 @@ const defaultStarter = {
 
 const getToken = () => new URLSearchParams(window.location.search).get("token") ?? "";
 
+const hashString = (value: string) => {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 33) ^ value.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(16);
+};
+
+const buildChangeSummary = (previousCode: string, nextCode: string, language: string) => {
+  const previousLines = previousCode.split("\n");
+  const nextLines = nextCode.split("\n");
+  const previousSet = new Set(previousLines);
+  const nextSet = new Set(nextLines);
+
+  const insertedLines = nextLines.filter((line) => !previousSet.has(line)).length;
+  const removedLines = previousLines.filter((line) => !nextSet.has(line)).length;
+
+  return {
+    changed: previousCode !== nextCode,
+    language,
+    previous_hash: hashString(previousCode),
+    next_hash: hashString(nextCode),
+    previous_length: previousCode.length,
+    next_length: nextCode.length,
+    inserted_lines: insertedLines,
+    removed_lines: removedLines,
+  };
+};
+
+const detectLanguageMismatch = (lang: string, source: string) => {
+  const normalized = source.trim().toLowerCase();
+  if (!normalized) return null;
+  const looksLikeJs =
+    /\bfunction\b/.test(normalized) ||
+    /\bconsole\.log\b/.test(normalized) ||
+    /\b(let|const|var)\b/.test(normalized) ||
+    /=>/.test(normalized);
+  const looksLikePy =
+    /\bdef\b/.test(normalized) ||
+    /\bprint\(/.test(normalized) ||
+    /\bimport\b/.test(normalized);
+
+  if (lang === "python" && looksLikeJs) {
+    return "Your code looks like JavaScript, but Python is selected.";
+  }
+  if (lang === "javascript" && looksLikePy) {
+    return "Your code looks like Python, but JavaScript is selected.";
+  }
+  return null;
+};
+
+const getVerdictStyle = (verdict: string) => {
+  const normalized = verdict?.toUpperCase?.() ?? "NA";
+  switch (normalized) {
+    case "AC":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "WA":
+      return "bg-rose-50 text-rose-700 border-rose-200";
+    case "RE":
+      return "bg-orange-50 text-orange-700 border-orange-200";
+    case "IE":
+      return "bg-slate-50 text-slate-700 border-slate-200";
+    default:
+      return "bg-sky-50 text-sky-700 border-sky-200";
+  }
+};
+
+const getVerdictIcon = (verdict: string) => {
+  const normalized = verdict?.toUpperCase?.() ?? "NA";
+  switch (normalized) {
+    case "AC":
+      return <CheckCircle2 className="h-4 w-4" />;
+    case "WA":
+      return <XCircle className="h-4 w-4" />;
+    default:
+      return <AlertCircle className="h-4 w-4" />;
+  }
+};
+
+const getCaseTone = (passed: boolean) =>
+  passed
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : "bg-rose-50 text-rose-700 border-rose-200";
+
+const formatOutput = (value?: string | null) => {
+  if (value === null || value === undefined || value === "") return "(no output)";
+  if (value.trim() === "") return "(whitespace output)";
+  return value;
+};
+
+const getLanguageLabel = (lang: string) => {
+  switch (lang) {
+    case "javascript":
+      return "JavaScript";
+    case "python":
+      return "Python";
+    case "java":
+      return "Java";
+    case "cpp":
+      return "C++";
+    case "algo":
+      return "Algo";
+    default:
+      return lang.charAt(0).toUpperCase() + lang.slice(1);
+  }
+};
+
+const getLanguageFileExtension = (lang: string) => {
+  switch (lang) {
+    case "python":
+      return "py";
+    case "javascript":
+      return "js";
+    case "java":
+      return "java";
+    case "cpp":
+      return "cpp";
+    default:
+      return "txt";
+  }
+};
+
 const InterviewSessionPage = () => {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -48,12 +191,18 @@ const InterviewSessionPage = () => {
   const [runOutput, setRunOutput] = useState<string | null>(null);
   const [executionResult, setExecutionResult] = useState<SubmissionResult | null>(null);
   const [activeCaseIndex, setActiveCaseIndex] = useState(0);
+  const [leftWidth, setLeftWidth] = useState(34);
+  const [rightResultsHeight, setRightResultsHeight] = useState(32);
 
   const codeRef = useRef(code);
   const languageRef = useRef(language);
   const problemIdRef = useRef<number | null>(selectedProblemId);
+  const storagePrefixRef = useRef("");
   const loggingEnabledRef = useRef(true);
   const closingRef = useRef(false);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<"vertical" | "right-horizontal" | null>(null);
 
   const sessionQuery = useQuery<CandidateSession>({
     queryKey: ["candidate-session-active", token],
@@ -98,9 +247,18 @@ const InterviewSessionPage = () => {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (payload: { token: string; problem_id: number; language: string; code: string }) =>
+    mutationFn: (payload: {
+      token: string;
+      problem_id: number;
+      language: string;
+      code: string;
+      change_summary?: Record<string, unknown>;
+    }) =>
       interviewSessionAPI.save(payload),
     onSuccess: () => {
+      if (storagePrefixRef.current) {
+        localStorage.setItem(`${storagePrefixRef.current}:saved:${languageRef.current}`, codeRef.current);
+      }
       setIsDirty(false);
     },
     onError: (error: Error) => {
@@ -143,7 +301,7 @@ const InterviewSessionPage = () => {
     mutationFn: () =>
       submissionsAPI.run({
         problem_id: Number(selectedProblemId),
-        language,
+        language: language.toLowerCase(),
         code,
       }),
     onSuccess: (result) => {
@@ -151,21 +309,24 @@ const InterviewSessionPage = () => {
       setActiveCaseIndex(0);
       const output = result.cases?.map((c) => c.stdout ?? "").join("\n") ?? "";
       setRunOutput(output || "No output");
+      toast({
+        title: result.verdict === "AC" ? "All tests passed!" : "Run completed",
+        description: `Verdict: ${result.verdict} (${result.passed}/${result.total} passed)`,
+        variant: result.verdict === "AC" ? "default" : "destructive",
+      });
     },
     onError: (error: Error) => {
       setExecutionResult(null);
       setRunOutput(`Run failed: ${error.message}`);
+      toast({
+        title: "Run failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
   const lastLogRef = useRef<Record<string, number>>({});
-  const hashString = (value: string) => {
-    let hash = 5381;
-    for (let i = 0; i < value.length; i += 1) {
-      hash = (hash * 33) ^ value.charCodeAt(i);
-    }
-    return (hash >>> 0).toString(16);
-  };
 
   useEffect(() => {
     codeRef.current = code;
@@ -180,6 +341,10 @@ const InterviewSessionPage = () => {
   }, [selectedProblemId]);
 
   const storagePrefix = useMemo(() => (token && selectedProblemId ? `interview:${token}:${selectedProblemId}` : ""), [token, selectedProblemId]);
+
+  useEffect(() => {
+    storagePrefixRef.current = storagePrefix;
+  }, [storagePrefix]);
 
   useEffect(() => {
     if (!currentProblemQuery.data || !storagePrefix) {
@@ -225,10 +390,15 @@ const InterviewSessionPage = () => {
         problem_id: problemIdRef.current,
         language: languageRef.current,
         code: codeRef.current,
+        change_summary: buildChangeSummary(
+          localStorage.getItem(`${storagePrefix}:saved:${languageRef.current}`) ?? "",
+          codeRef.current,
+          languageRef.current,
+        ),
       });
     }, 5000);
     return () => window.clearInterval(interval);
-  }, [isDirty, saveMutation, token, session?.status]);
+  }, [isDirty, saveMutation, storagePrefix, token, session?.status]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -267,7 +437,12 @@ const InterviewSessionPage = () => {
     const onPaste = (event: ClipboardEvent) => {
       const text = event.clipboardData?.getData("text") ?? "";
       logWithCooldown("paste", text
-        ? { length: text.length, hash: hashString(text) }
+        ? {
+            length: text.length,
+            hash: hashString(text),
+            preview: text.slice(0, 80),
+            lines: text.split("\n").length,
+          }
         : undefined);
     };
     const onKeydown = (event: KeyboardEvent) => {
@@ -275,6 +450,27 @@ const InterviewSessionPage = () => {
         logWithCooldown("shortcut", { key: event.key });
       }
     };
+    let mouseDistance = 0;
+    let mouseSamples = 0;
+    let lastMousePoint: { x: number; y: number } | null = null;
+    const onMouseMove = (event: MouseEvent) => {
+      if (lastMousePoint) {
+        mouseDistance += Math.hypot(event.clientX - lastMousePoint.x, event.clientY - lastMousePoint.y);
+      }
+      lastMousePoint = { x: event.clientX, y: event.clientY };
+      mouseSamples += 1;
+    };
+    const mouseInterval = window.setInterval(() => {
+      if (mouseSamples > 0) {
+        logWithCooldown("mouse_activity", {
+          samples: mouseSamples,
+          distance: Math.round(mouseDistance),
+        });
+      }
+      mouseDistance = 0;
+      mouseSamples = 0;
+      lastMousePoint = null;
+    }, 15000);
     let idleTimer: number | undefined;
     const resetIdle = () => {
       if (idleTimer) window.clearTimeout(idleTimer);
@@ -287,6 +483,7 @@ const InterviewSessionPage = () => {
     document.addEventListener("copy", onCopy);
     document.addEventListener("paste", onPaste);
     window.addEventListener("keydown", onKeydown);
+    window.addEventListener("mousemove", onMouseMove);
     ["mousemove", "keydown", "click", "scroll"].forEach((eventName) => {
       window.addEventListener(eventName, resetIdle);
     });
@@ -297,10 +494,12 @@ const InterviewSessionPage = () => {
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
       window.removeEventListener("keydown", onKeydown);
+      window.removeEventListener("mousemove", onMouseMove);
       ["mousemove", "keydown", "click", "scroll"].forEach((eventName) => {
         window.removeEventListener(eventName, resetIdle);
       });
       if (idleTimer) window.clearTimeout(idleTimer);
+      window.clearInterval(mouseInterval);
     };
   }, [logMutation, session, submitMutation.isPending, token]);
 
@@ -339,13 +538,71 @@ const InterviewSessionPage = () => {
         problem_id: problemIdRef.current,
         language: languageRef.current,
         code: codeRef.current,
+        change_summary: buildChangeSummary(
+          localStorage.getItem(`${storagePrefix}:saved:${languageRef.current}`) ?? "",
+          codeRef.current,
+          languageRef.current,
+        ),
       });
     }
     setSelectedProblemId(problemId);
   };
 
+  const persistInterviewDrafts = async () => {
+    if (!session?.problems?.length) {
+      return;
+    }
+
+    for (const problem of session.problems) {
+      const prefix = `interview:${token}:${problem.id}`;
+      const storedLanguage =
+        problem.id === selectedProblemId
+          ? language
+          : localStorage.getItem(`${prefix}:language`) ?? language;
+      const draftCode =
+        problem.id === selectedProblemId
+          ? code
+          : localStorage.getItem(`${prefix}:code:${storedLanguage}`) ?? "";
+
+      if (!draftCode.trim()) {
+        continue;
+      }
+
+      await saveMutation.mutateAsync({
+        token,
+        problem_id: problem.id,
+        language: storedLanguage,
+        code: draftCode,
+        change_summary: buildChangeSummary(
+          localStorage.getItem(`${prefix}:saved:${storedLanguage}`) ?? "",
+          draftCode,
+          storedLanguage,
+        ),
+      });
+
+      localStorage.setItem(`${prefix}:saved:${storedLanguage}`, draftCode);
+    }
+  };
+
   const handleRun = async () => {
     if (!selectedProblemId) {
+      return;
+    }
+    if (!code.trim()) {
+      toast({
+        title: "Empty solution",
+        description: "Please write your solution before running.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const mismatch = detectLanguageMismatch(language, code);
+    if (mismatch) {
+      toast({
+        title: "Language mismatch",
+        description: `${mismatch} Please switch the language and try again.`,
+        variant: "destructive",
+      });
       return;
     }
     await runMutation.mutateAsync();
@@ -373,6 +630,10 @@ const InterviewSessionPage = () => {
 
   const runCases = executionResult?.cases ?? [];
   const activeRunCase = runCases[activeCaseIndex];
+  const sampleCases = useMemo(
+    () => (currentProblemQuery.data?.test_cases ?? []).filter((testCase) => testCase.is_sample).sort((a, b) => a.order - b.order),
+    [currentProblemQuery.data?.test_cases],
+  );
 
   useEffect(() => {
     if (runCases.length === 0) {
@@ -383,22 +644,65 @@ const InterviewSessionPage = () => {
     }
   }, [activeCaseIndex, runCases.length]);
 
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (dragRef.current === "vertical") {
+        const rect = splitRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const next = ((event.clientX - rect.left) / rect.width) * 100;
+        const clamped = Math.min(52, Math.max(24, next));
+        setLeftWidth(clamped);
+        return;
+      }
+
+      if (dragRef.current === "right-horizontal") {
+        const rect = rightPanelRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const next = ((rect.bottom - event.clientY) / rect.height) * 100;
+        const clamped = Math.min(72, Math.max(22, next));
+        setRightResultsHeight(clamped);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
   if (!token) {
     return <Redirect to="/challenge" />;
   }
 
   if (sessionQuery.isLoading || !session) {
     return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Loading active session...
+      <div className="space-y-4 py-10">
+        <div className="flex justify-end px-4">
+          <ThemeToggle />
+        </div>
+        <div className="flex items-center justify-center py-20 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Loading active session...
+        </div>
       </div>
     );
   }
 
   if (session.status !== "started") {
     return (
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div className="flex justify-end">
+          <ThemeToggle />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>Session unavailable</CardTitle>
@@ -413,165 +717,341 @@ const InterviewSessionPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-background to-accent/5">
-        <CardContent className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">{session.candidate_email}</p>
-            <h1 className="text-2xl font-semibold">{session.title}</h1>
+    <div className="h-screen overflow-hidden bg-slate-50 font-body text-slate-900 dark:bg-[#060e20] dark:text-[#dee5ff]">
+      <main className="flex h-screen overflow-hidden">
+        <aside className="flex w-24 shrink-0 flex-col border-r border-slate-200 bg-slate-100 dark:border-white/5 dark:bg-[#091328]">
+          <div className="border-b border-slate-200 px-3 py-4 text-center dark:border-white/5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-[#a3aac4]">Time</p>
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <Timer className="h-4 w-4 animate-pulse text-amber-500 dark:text-[#ffb148]" />
+              <span className="font-mono text-sm font-bold text-slate-900 dark:text-[#dee5ff]">{timeLeft ?? "--:--"}</span>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="secondary">{session.status}</Badge>
-            <Badge variant="outline" className="px-3 py-1 text-sm">
-              <Timer className="mr-2 h-4 w-4" />
-              {timeLeft ?? "--:--"}
-            </Badge>
-            <Button variant="outline" onClick={handleRun} disabled={!selectedProblemId || runMutation.isPending}>
-              {runMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-              Run
-            </Button>
+
+          <ScrollArea className="flex-1 px-3 py-4">
+            <div className="space-y-3">
+              {[...session.problems]
+                .sort((a, b) => a.order - b.order)
+                .map((problem, index) => {
+                  const active = selectedProblemId === problem.id;
+                  return (
+                    <button
+                      key={problem.id}
+                      type="button"
+                      onClick={() => handleProblemChange(problem.id)}
+                      className={`w-full rounded-2xl border p-3 text-center transition-all ${
+                        active
+                          ? "border-emerald-400 bg-emerald-50 shadow-[0_10px_30px_rgba(0,0,0,0.08)] dark:border-[#69f6b8] dark:bg-[#1b2744] dark:shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+                          : "border-slate-200 bg-white hover:bg-slate-100 dark:border-white/5 dark:bg-[#141f38] dark:hover:bg-[#1b2744]"
+                      }`}
+                    >
+                      <div className={`text-xs font-black uppercase tracking-[0.24em] ${active ? "text-emerald-600 dark:text-[#69f6b8]" : "text-slate-500 dark:text-[#a3aac4]"}`}>
+                        P{index + 1}
+                      </div>
+                      <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-600 dark:text-[#dee5ff]/70">
+                        {problem.difficulty}
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+          </ScrollArea>
+
+          <div className="mt-auto border-t border-slate-200 bg-slate-100/80 p-3 dark:border-white/5 dark:bg-black/10">
+            <div className="mb-3 flex items-center justify-center">
+              <ThemeToggle />
+            </div>
+            <div className="mb-3 flex flex-col items-center gap-2">
+              <div className="relative">
+                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-white dark:border-[#40485d] dark:bg-[#192540]">
+                  <Camera className="h-4 w-4 text-emerald-500 dark:text-[#69f6b8]" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-slate-100 bg-emerald-500 dark:border-[#091328] dark:bg-[#69f6b8]" />
+              </div>
+              <p className="text-center text-[10px] font-bold leading-4 text-slate-700 dark:text-[#dee5ff]">You are live</p>
+              <div className="flex gap-1">
+                <span className="h-1 w-4 rounded-full bg-emerald-500 dark:bg-[#69f6b8]" />
+                <span className="h-1 w-6 rounded-full bg-emerald-500 dark:bg-[#69f6b8]" />
+                <span className="h-1 w-3 rounded-full bg-emerald-300 dark:bg-[#69f6b8]/40" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-white p-2 dark:bg-[#141f38]">
+                <Mic className="h-4 w-4 text-emerald-500 dark:text-[#69f6b8]" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-[#a3aac4]">Mic</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-white p-2 dark:bg-[#141f38]">
+                <Camera className="h-4 w-4 text-emerald-500 dark:text-[#69f6b8]" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-[#a3aac4]">Cam</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section ref={splitRef} className="flex min-w-0 flex-1 overflow-hidden">
+          <div
+            className="flex min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-white/5 dark:bg-[#0f1930]"
+            style={{ width: `${leftWidth}%` }}
+          >
+            <div className="border-b border-slate-200 bg-slate-100 px-5 py-3 dark:border-white/5 dark:bg-[#11141b]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-headline text-xl font-bold text-slate-900 dark:text-[#dee5ff]">{currentProblemMeta?.title ?? "Problem"}</h2>
+                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-[#a3aac4]">
+                    {currentProblemMeta?.difficulty ?? "Interview Problem"}
+                  </p>
+                </div>
+                {currentProblemMeta?.difficulty && (
+                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-700 dark:border-[#40485d] dark:bg-[#192540] dark:text-[#dee5ff]">
+                    {currentProblemMeta.difficulty}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="space-y-8 p-6">
+                <div className="space-y-4">
+                  <div className="whitespace-pre-wrap text-sm leading-8 text-slate-700 dark:text-[#dee5ff]/88">
+                    {currentProblemQuery.data?.description || currentProblemMeta?.description || "Review the prompt and write your solution."}
+                  </div>
+                </div>
+
+                {sampleCases.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-[#a3aac4]">Examples</div>
+                    {sampleCases.map((testCase, index) => (
+                      <div key={testCase.id} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-[#141f38]">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-[#a3aac4]">Example {index + 1}</div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-900 dark:text-[#dee5ff]">Input</p>
+                          <pre className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-3 font-mono text-xs text-slate-900 dark:border-white/5 dark:bg-black/10 dark:text-[#dee5ff]">
+                            {testCase.input_text}
+                          </pre>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-900 dark:text-[#dee5ff]">Output</p>
+                          <pre className="mt-2 overflow-x-auto rounded-xl border border-emerald-200 bg-emerald-50 p-3 font-mono text-xs text-emerald-700 dark:border-[#69f6b8]/20 dark:bg-[#69f6b8]/10 dark:text-[#69f6b8]">
+                            {testCase.output_text}
+                          </pre>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {currentProblemQuery.data?.constraints && (
+                  <div className="space-y-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-[#a3aac4]">Constraints</div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-8 text-slate-600 dark:border-white/5 dark:bg-[#141f38] dark:text-[#a3aac4]">
+                      {currentProblemQuery.data.constraints}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div
+            className="flex h-full w-3 shrink-0 cursor-col-resize items-center justify-center bg-slate-100 dark:bg-[#060e20]"
+            onMouseDown={() => {
+              dragRef.current = "vertical";
+              document.body.style.userSelect = "none";
+              document.body.style.cursor = "col-resize";
+            }}
+          >
+            <div className="h-full w-px bg-slate-300 dark:bg-white/10" />
+          </div>
+
+          <section ref={rightPanelRef} className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-100 dark:bg-[#060e20]">
+            <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 dark:border-white/5 dark:bg-[#141f38]">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sky-600 dark:text-[#7aafff]">
+                  <span className="font-mono text-xs font-medium">Solution.{getLanguageFileExtension(language)}</span>
+                </div>
+                <div className="h-4 w-px bg-slate-300 dark:bg-[#40485d]" />
+                <div className="text-xs font-mono text-slate-500 dark:text-[#a3aac4]">{getLanguageLabel(language)}</div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Select value={language} onValueChange={setLanguage}>
+                  <SelectTrigger className="h-9 w-[160px] border-slate-300 bg-slate-50 text-xs font-bold uppercase tracking-[0.16em] text-slate-900 dark:border-white/10 dark:bg-[#192540] dark:text-[#dee5ff]">
+                    <SelectValue placeholder="Language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {starterLanguages.map((lang) => (
+                      <SelectItem key={lang} value={lang}>
+                        {getLanguageLabel(lang)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  className="h-9 rounded-md bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200 dark:bg-[#192540] dark:text-[#dee5ff] dark:hover:bg-[#243353]"
+                  onClick={() => {
+                    const starter =
+                      currentProblemQuery.data?.starter_codes?.find((starter) => starter.language.toLowerCase() === language)?.code ??
+                      defaultStarter[language as keyof typeof defaultStarter] ??
+                      "";
+                    setCode(starter);
+                    setIsDirty(true);
+                  }}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reset
+                </Button>
+                <Button
+                  className="h-9 rounded-md bg-emerald-400 px-4 text-xs font-bold text-emerald-950 hover:bg-emerald-300 dark:bg-[#69f6b8] dark:text-[#005a3c] dark:hover:bg-[#58e7ab]"
+                  onClick={handleRun}
+                  disabled={!selectedProblemId || runMutation.isPending}
+                >
+                  {runMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                  Run Tests
+                </Button>
+              </div>
+            </div>
+
+            <div className="min-h-0 shrink-0 overflow-hidden" style={{ height: `${100 - rightResultsHeight}%` }}>
+              <CodeEditor
+                value={code}
+                onChange={(value) => {
+                  setCode(value);
+                  setIsDirty(true);
+                }}
+                language={language as "javascript" | "python" | "java" | "cpp" | "algo"}
+                height="100%"
+                showHeader={false}
+                fileName={`Solution.${getLanguageFileExtension(language)}`}
+              />
+            </div>
+
+            <div
+              className="flex h-3 shrink-0 cursor-row-resize items-center justify-center bg-slate-100 dark:bg-[#060e20]"
+              onMouseDown={() => {
+                dragRef.current = "right-horizontal";
+                document.body.style.userSelect = "none";
+                document.body.style.cursor = "row-resize";
+              }}
+            >
+              <div className="h-px w-full bg-slate-300 dark:bg-white/10" />
+            </div>
+
+            <div
+              className="flex min-h-0 shrink-0 flex-col overflow-hidden border-t border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-[#091328]"
+              style={{ height: `${rightResultsHeight}%` }}
+            >
+              <div className="flex h-8 items-center justify-between border-b border-slate-200 bg-white px-4 dark:border-white/5 dark:bg-[#141f38]">
+                <div className="flex gap-5">
+                  <span className="border-b-2 border-emerald-500 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:border-[#69f6b8] dark:text-[#69f6b8]">Console</span>
+                  <span className="pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-[#a3aac4]">Test Results</span>
+                </div>
+                <span className="text-xs text-slate-500 dark:text-[#a3aac4]">{executionResult ? `${executionResult.passed}/${executionResult.total} passed` : "Waiting for run"}</span>
+              </div>
+
+              <ScrollArea className="h-0 min-h-0 flex-1">
+                <div className="space-y-3 p-4 pb-10 font-mono text-xs">
+                  {runCases.length > 0 ? (
+                    <>
+                      <div className={`flex items-center justify-between rounded-xl border px-4 py-3 ${getVerdictStyle(executionResult?.verdict ?? "NA")}`}>
+                        <div className="flex items-center gap-2 font-semibold">
+                          {getVerdictIcon(executionResult?.verdict ?? "NA")}
+                          <span>{executionResult?.verdict ?? "NA"}</span>
+                        </div>
+                        <div>{executionResult?.passed ?? 0}/{executionResult?.total ?? 0} passed</div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {runCases.map((tc, index) => (
+                          <button
+                            key={tc.id ?? index}
+                            type="button"
+                            onClick={() => setActiveCaseIndex(index)}
+                            className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors ${
+                              activeCaseIndex === index
+                                ? tc.passed
+                                  ? "border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-[#69f6b8]/30 dark:bg-[#006c49] dark:text-[#e1ffec]"
+                                  : "border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-500/30 dark:bg-rose-950/40 dark:text-rose-200"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-[#141f38] dark:text-[#a3aac4] dark:hover:bg-[#192540]"
+                            }`}
+                          >
+                            Case {index + 1}
+                          </button>
+                        ))}
+                      </div>
+
+                      {activeRunCase && (
+                        <div className="rounded-xl border border-slate-200 bg-white p-3 text-slate-900 dark:border-white/5 dark:bg-black/10 dark:text-[#dee5ff]">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-[#a3aac4]">
+                              Test Case {activeCaseIndex + 1}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                                activeRunCase.passed ? "bg-[#006c49] text-[#e1ffec]" : "bg-rose-900/40 text-rose-200"
+                              }`}
+                            >
+                              {activeRunCase.passed ? "Passed" : "Failed"}
+                            </span>
+                          </div>
+                          {activeRunCase.status && <p className="mb-2 text-slate-500 dark:text-[#a3aac4]">Status: {activeRunCase.status}</p>}
+                          <p className="text-slate-500 dark:text-[#a3aac4]">Input:</p>
+                          <pre className="mb-3 mt-1 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/5 dark:bg-[#141f38]">
+                            {activeRunCase.input_text ?? ""}
+                          </pre>
+                          <p className="text-slate-500 dark:text-[#a3aac4]">Expected:</p>
+                          <pre className="mb-3 mt-1 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/5 dark:bg-[#141f38]">
+                            {activeRunCase.output_text ?? ""}
+                          </pre>
+                          <p className="text-slate-500 dark:text-[#a3aac4]">Your Output:</p>
+                          <pre className="mb-3 mt-1 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/5 dark:bg-[#141f38]">
+                            {formatOutput(activeRunCase.stdout)}
+                          </pre>
+                          {(activeRunCase.stderr || activeRunCase.compile_output) && (
+                            <>
+                              <p className="text-rose-300">Error:</p>
+                              <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-rose-900/40 bg-rose-950/30 p-2 text-rose-200">
+                                {formatOutput(activeRunCase.stderr || activeRunCase.compile_output)}
+                              </pre>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-slate-500 dark:text-[#a3aac4]">{runOutput ?? "Run your code to see console output."}</div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </section>
+
+          <aside className="flex flex-col items-center gap-5 border-l border-slate-200 bg-slate-100 py-4 dark:border-white/5 dark:bg-[#091328]">
             <Button
+              variant="destructive"
+              className="h-10 w-10 rounded-lg bg-rose-700 p-0 hover:bg-rose-600"
               onClick={async () => {
-                if (!window.confirm("Submit the interview now?")) return;
+                if (!window.confirm("Finish the interview now?")) return;
                 loggingEnabledRef.current = false;
-                if (isDirty && selectedProblemId) {
-                  await saveMutation.mutateAsync({
-                    token,
-                    problem_id: selectedProblemId,
-                    language,
-                    code,
-                  });
-                }
+                await persistInterviewDrafts();
                 await submitMutation.mutateAsync();
               }}
               disabled={submitMutation.isPending}
             >
-              {submitMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-              Submit Interview
+              {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle>Problems</CardTitle>
-            <CardDescription>Switching problems keeps your code locally and on autosave.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[...session.problems]
-                .sort((a, b) => a.order - b.order)
-                .map((problem, index) => (
-                  <button
-                    key={problem.id}
-                    type="button"
-                    onClick={() => handleProblemChange(problem.id)}
-                    className={`w-full rounded-lg border px-3 py-3 text-left ${
-                      selectedProblemId === problem.id ? "border-primary bg-primary/5" : "hover:bg-muted/40"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium">{index + 1}. {problem.title}</span>
-                      <Badge variant="outline">{problem.difficulty}</Badge>
-                    </div>
-                  </button>
-                ))}
+            <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-500 transition-colors hover:text-sky-600 dark:bg-[#192540] dark:text-[#a3aac4] dark:hover:text-[#7aafff]">
+              <Settings2 className="h-4 w-4" />
+            </button>
+            <div className="mt-auto flex flex-col items-center gap-3">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.35)] dark:bg-[#69f6b8] dark:shadow-[0_0_8px_rgba(105,246,184,0.5)]" />
+              <span className="[writing-mode:vertical-lr] rotate-180 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-[#a3aac4]">
+                Connected
+              </span>
             </div>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{currentProblemMeta?.title ?? "Problem"}</CardTitle>
-              <CardDescription>{currentProblemMeta?.description ?? "Review the prompt and write your solution."}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {currentProblemMeta?.constraints && (
-                <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-                  <span className="font-medium">Constraints:</span> {currentProblemMeta.constraints}
-                </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {starterLanguages.map((lang) => (
-                  <Button
-                    key={lang}
-                    size="sm"
-                    variant={language === lang ? "default" : "outline"}
-                    onClick={() => setLanguage(lang)}
-                  >
-                    {lang}
-                  </Button>
-                ))}
-              </div>
-              <div className="h-[520px]">
-                <CodeEditor
-                  value={code}
-                  onChange={(value) => {
-                    setCode(value);
-                    setIsDirty(true);
-                  }}
-                  language={language as "javascript" | "python" | "java" | "cpp" | "algo"}
-                  height="520px"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Run Output</CardTitle>
-              <CardDescription>Run your code against sample tests.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {runCases.length > 0 ? (
-                  <>
-                    <div className="flex flex-wrap gap-2">
-                      {runCases.map((tc, index) => (
-                        <Button
-                          key={tc.id ?? index}
-                          size="sm"
-                          variant={index === activeCaseIndex ? "default" : "outline"}
-                          onClick={() => setActiveCaseIndex(index)}
-                        >
-                          Case {index + 1}
-                        </Button>
-                      ))}
-                    </div>
-                    {activeRunCase && (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="rounded-lg border p-3">
-                          <p className="text-xs uppercase text-muted-foreground">Input</p>
-                          <pre className="mt-2 text-sm">{activeRunCase.input_text ?? ""}</pre>
-                        </div>
-                        <div className="rounded-lg border p-3">
-                          <p className="text-xs uppercase text-muted-foreground">Expected</p>
-                          <pre className="mt-2 text-sm">{activeRunCase.output_text ?? ""}</pre>
-                        </div>
-                        <div className="rounded-lg border p-3">
-                          <p className="text-xs uppercase text-muted-foreground">Your Output</p>
-                          <pre className="mt-2 text-sm">{activeRunCase.stdout ?? ""}</pre>
-                        </div>
-                        <div className="rounded-lg border p-3">
-                          <p className="text-xs uppercase text-muted-foreground">Error</p>
-                          <pre className="mt-2 text-sm">{activeRunCase.stderr ?? ""}</pre>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <ScrollArea className="h-28 rounded-lg border p-4">
-                    <pre className="text-sm text-muted-foreground">{runOutput ?? "Run your code to see output."}</pre>
-                  </ScrollArea>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+          </aside>
+        </section>
+      </main>
     </div>
   );
 };

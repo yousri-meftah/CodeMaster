@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -14,7 +14,9 @@ class InterviewSubmission(Base):
     problem_id = Column(ForeignKey("problems.id", ondelete="CASCADE"), nullable=False)
     language = Column(String(64), nullable=False)
     code = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    change_summary = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     candidate = relationship("InterviewCandidate", back_populates="submissions")
     problem = relationship("Problem")

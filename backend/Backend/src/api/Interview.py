@@ -72,6 +72,7 @@ def save_interview_code(payload: InterviewSaveIn, db: Session = Depends(get_db))
         problem_id=payload.problem_id,
         language=payload.language,
         code=payload.code,
+        change_summary=payload.change_summary,
     )
     db.refresh(candidate)
     return candidate

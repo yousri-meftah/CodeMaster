@@ -34,33 +34,54 @@ def _create_problem(client, headers):
     return create_resp.json()["id"]
 
 
-@pytest.mark.skip(reason="Relies on third-party execution service (piston) currently offline.")
+def _fake_execute_test_cases(language, source_code, test_cases):
+    return [
+        {
+            "id": tc.get("id"),
+            "input_text": tc.get("input_text"),
+            "output_text": tc.get("output_text"),
+            "is_sample": tc.get("is_sample", True),
+            "stdout": tc.get("output_text"),
+            "stderr": "",
+            "compile_output": None,
+            "status_id": 0,
+            "status": "OK",
+            "time": None,
+            "memory": None,
+            "passed": True,
+        }
+        for tc in test_cases
+    ]
+
+
+def test_run_submission(monkeypatch, client, db_session):
+    headers = _auth_headers(client, db_session)
+    problem_id = _create_problem(client, headers)
+    from api import Submission
+
+    monkeypatch.setattr(Submission, "execute_test_cases", _fake_execute_test_cases)
+
+    payload = {
+        "problem_id": problem_id,
+        "language": "python",
+        "code": "print(sum(map(int, input().split())))",
+    }
+    resp = client.post("/submission/run", json=payload, headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["verdict"] == "AC"
+    assert body["passed"] == body["total"] == 1
+    assert len(body["cases"]) == 1
+    assert body["cases"][0]["is_sample"] is True
+    assert body["hidden"] is None
+
+
 def test_submit_submission(monkeypatch, client, db_session):
     headers = _auth_headers(client, db_session)
     problem_id = _create_problem(client, headers)
+    from api import Submission
 
-    def fake_execute_test_cases(language, source_code, test_cases):
-        return [
-            {
-                "id": tc.get("id"),
-                "input_text": tc.get("input_text"),
-                "output_text": tc.get("output_text"),
-                "is_sample": tc.get("is_sample", True),
-                "stdout": tc.get("output_text"),
-                "stderr": "",
-                "compile_output": None,
-                "status_id": 0,
-                "status": "OK",
-                "time": None,
-                "memory": None,
-                "passed": True,
-            }
-            for tc in test_cases
-        ]
-
-    from app.services import piston
-
-    monkeypatch.setattr(piston, "execute_test_cases", fake_execute_test_cases)
+    monkeypatch.setattr(Submission, "execute_test_cases", _fake_execute_test_cases)
 
     payload = {
         "problem_id": problem_id,
@@ -72,3 +93,18 @@ def test_submit_submission(monkeypatch, client, db_session):
     body = resp.json()
     assert body["verdict"] == "AC"
     assert body["passed"] == body["total"]
+    assert body["hidden"] == {"passed": 1, "total": 1}
+
+
+def test_submission_language_mismatch_returns_400(client, db_session):
+    headers = _auth_headers(client, db_session)
+    problem_id = _create_problem(client, headers)
+
+    payload = {
+        "problem_id": problem_id,
+        "language": "python",
+        "code": "function solve(input) { console.log(input); }",
+    }
+    resp = client.post("/submission/run", json=payload, headers=headers)
+    assert resp.status_code == 400
+    assert "JavaScript" in resp.json()["detail"]
