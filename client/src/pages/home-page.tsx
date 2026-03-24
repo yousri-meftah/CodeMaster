@@ -56,7 +56,7 @@ const HomePage = () => {
                     <span className="h-3 w-3 rounded-full bg-amber-400/50" />
                     <span className="h-3 w-3 rounded-full bg-emerald-400/50" />
                   </div>
-                  <span className="ml-4 font-mono text-[11px] text-muted-foreground">solve_labyrinth.py</span>
+                  <span className="ml-4 font-mono text-[11px] text-muted-foreground">Code.py</span>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">
                   <Zap className="h-3.5 w-3.5" />

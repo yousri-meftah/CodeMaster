@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Article } from "@shared/schema";
+import { Article } from "@/types/schema";
 import { 
   Card, 
   CardContent, 
@@ -102,7 +102,7 @@ const ArticleDetailPage = () => {
             </Badge>
           ))}
           <span className="text-muted-foreground text-sm">
-            {formatDate(articleToShow.createdAt)}
+            {articleToShow.createdAt ? formatDate(articleToShow.createdAt) : ""}
           </span>
         </div>
         

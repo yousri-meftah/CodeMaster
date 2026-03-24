@@ -1,20 +1,32 @@
-version: "3.8"
-
 services:
   backend:
     container_name: "codemaster-backend"
     build:
       context: .
-      dockerfile: ./Backend/docker/Dockerfile
+      dockerfile: ./docker/Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - ./envs/backend.env
+      - ./envs/pg.env
     environment:
+      - RUNNING_IN_DOCKER=1
       - UVICORN_WORKERS=2
+      - HOST=0.0.0.0
+      - PORT=8000
+      - POSTGRES_HOST=postgres
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8000/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     networks:
       - main
     restart: unless-stopped
@@ -23,13 +35,13 @@ services:
     container_name: "codemaster-postgres"
     image: postgres:15.4-alpine
     env_file:
-      - ./Backend/envs/pg.env
-    expose:
-      - "5432"
+      - ./envs/pg.env
+    ports:
+      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 2s
       timeout: 5s
       retries: 5
@@ -40,8 +52,8 @@ services:
   redis:
     container_name: "codemaster-redis"
     image: redis:7-alpine
-    expose:
-      - "6379"
+    ports:
+      - "6379:6379"
     volumes:
       - redis-data:/data
     networks:

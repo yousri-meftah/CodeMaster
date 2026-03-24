@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Article } from "@shared/schema";
+import { Article } from "@/types/schema";
 import { 
   Card, 
   CardContent, 
@@ -22,12 +22,15 @@ import { articlesAPI } from "@/services/api";
 
 const ExplorePage = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all-categories");
 
   // Fetch articles
   const { data: articles, isLoading } = useQuery<Article[]>({
     queryKey: ["articles", categoryFilter],
-    queryFn: () => articlesAPI.getAllArticles(categoryFilter || undefined),
+    queryFn: () =>
+      articlesAPI.getAllArticles(
+        categoryFilter !== "all-categories" ? categoryFilter : undefined,
+      ),
   });
 
   const articlesToShow = articles || [];
@@ -85,7 +88,7 @@ const ExplorePage = () => {
               <SelectItem key={category} value={category}>
                 {category
                   .split("-")
-                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
                   .join(" ")}
               </SelectItem>
             ))}
@@ -103,7 +106,7 @@ const ExplorePage = () => {
           <p className="text-muted-foreground">No articles yet. Ask an admin to add some.</p>
           <Button variant="link" onClick={() => {
             setSearchTerm("");
-            setCategoryFilter("");
+            setCategoryFilter("all-categories");
           }}>
             Clear filters
           </Button>

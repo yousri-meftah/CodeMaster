@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Roadmap, UserProgress } from "@shared/schema";
+import { Roadmap, UserProgress } from "@/types/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -28,6 +28,14 @@ import {
   CheckCircle2, 
   Circle 
 } from "lucide-react";
+
+type RoadmapStep = {
+  name: string;
+  description?: string;
+  resources?: string[];
+  skills?: string[];
+  problemId?: number;
+};
 
 const RoadmapPage = () => {
   const { user } = useAuth();
@@ -99,24 +107,26 @@ const RoadmapPage = () => {
   const roadmapsToShow = roadmaps.length > 0 ? roadmaps : fallbackRoadmaps;
   
   // Fetch user progress
-  const { data: userProgress, isLoading: progressLoading } = useQuery<UserProgress>({
+  const { data: userProgress, isLoading: progressLoading, error: progressError } = useQuery<UserProgress, Error>({
     queryKey: ["/progress"],
     enabled: !!user,
-    onError: () => {
-      console.error("Failed to fetch user progress");
-      toast({
-        title: "Error", 
-        description: "Failed to load your progress data. Please try again later.",
-        variant: "destructive",
-      });
-    }
   });
-  
+
+  useEffect(() => {
+    if (!progressError) return;
+    console.error("Failed to fetch user progress");
+    toast({
+      title: "Error", 
+      description: "Failed to load your progress data. Please try again later.",
+      variant: "destructive",
+    });
+  }, [progressError, toast]);
+
   // Initialize completed steps from user progress data when it loads
   useEffect(() => {
-    if (userProgress && 'roadmapProgress' in userProgress && userProgress.roadmapProgress) {
+    if (userProgress?.roadmapProgress) {
       try {
-        const roadmapProgress = JSON.parse(userProgress.roadmapProgress as string);
+        const roadmapProgress = JSON.parse(userProgress.roadmapProgress);
         setCompletedSteps(roadmapProgress);
       } catch (e) {
         console.error("Failed to parse roadmap progress", e);
@@ -259,7 +269,7 @@ const RoadmapPage = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {Array.isArray(roadmap.steps) && roadmap.steps.map((step: any, index: number) => (
+                  {Array.isArray(roadmap.steps) && roadmap.steps.map((step: RoadmapStep, index: number) => (
                     <div key={index} className="relative rounded-xl border bg-background/80 p-4 shadow-sm">
                       <div className="absolute -top-3 left-4 rounded-full border bg-background px-3 py-1 text-xs font-medium">
                         Step {index + 1}

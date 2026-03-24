@@ -11,7 +11,7 @@ import {
   Problem,
   Article,
   InsertArticle,
-} from "@shared/schema";
+} from "@/types/schema";
 import {
   Card,
   CardContent,
@@ -88,6 +88,14 @@ const articleFormSchema = z.object({
 type InsertRoadmap = {
   title: string;
   problem_ids_ordered: number[];
+};
+
+const formatOptionalDate = (value?: string | Date | null) =>
+  value ? new Date(value).toLocaleDateString() : "—";
+
+const isRecentDate = (value?: string | Date | null) => {
+  if (!value) return false;
+  return new Date(value).getTime() > Date.now() - 7 * 86400000;
 };
 
 const AdminPage = () => {
@@ -433,7 +441,7 @@ const AdminPage = () => {
     // Convert comma-separated categories to array
     const articleData = {
       ...values,
-      categories: values.categories.split(",").map(cat => cat.trim())
+      categories: values.categories.split(",").map((cat: string) => cat.trim())
     };
     
     if (selectedItem && selectedItemType === 'article') {
@@ -540,7 +548,7 @@ const AdminPage = () => {
   const filteredProblems = problems
     ? problems.filter((problem) =>
         problem.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        problem.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+        problem.tags?.some((tag: string) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : [];
 
@@ -548,7 +556,7 @@ const AdminPage = () => {
     ? articles.filter((article) =>
         article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         article.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        article.categories?.some(cat => cat.toLowerCase().includes(searchTerm.toLowerCase()))
+        article.categories?.some((cat: string) => cat.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : [];
 
@@ -590,7 +598,7 @@ const AdminPage = () => {
               </h3>
               <p className="text-2xl font-bold">{problems?.length || 0}</p>
               <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                {problems?.filter(p => p.createdAt && new Date(p.createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
+                {problems?.filter((p) => isRecentDate(p.createdAt)).length || 0} this week
               </p>
             </div>
             
@@ -600,7 +608,7 @@ const AdminPage = () => {
               </h3>
               <p className="text-2xl font-bold">{articles?.length || 0}</p>
               <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                {articles?.filter(a => a.createdAt && new Date(a.createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
+                {articles?.filter((a) => isRecentDate(a.createdAt)).length || 0} this week
               </p>
             </div>
             
@@ -620,7 +628,7 @@ const AdminPage = () => {
               </h3>
               <p className="text-2xl font-bold">{roadmaps?.length || 0}</p>
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                {roadmaps?.filter(r => (r as any).createdAt && new Date((r as any).createdAt).getTime() > Date.now() - 7 * 86400000).length || 0} this week
+                {roadmaps?.filter((r) => isRecentDate((r as { createdAt?: string | Date | null }).createdAt)).length || 0} this week
               </p>
             </div>
           </div>
@@ -1093,7 +1101,7 @@ const AdminPage = () => {
                                 <span key={i}>
                                   {i > 0 && ", "}
                                   {tag.split("-")
-                                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                                    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
                                     .join(" ")}
                                 </span>
                               ))}
@@ -1180,14 +1188,14 @@ const AdminPage = () => {
                                 <span key={i}>
                                   {i > 0 && ", "}
                                   {cat.split("-")
-                                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                                    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
                                     .join(" ")}
                                 </span>
                               ))}
                               {article.categories && article.categories.length > 2 && ", ..."}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {new Date(article.createdAt).toLocaleDateString()}
+                              {formatOptionalDate(article.createdAt)}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-right">
                               <Button 
@@ -1267,7 +1275,7 @@ const AdminPage = () => {
                               {roadmap.problem_ids_ordered?.length || 0} problems
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {(roadmap as any).createdAt ? new Date((roadmap as any).createdAt).toLocaleDateString() : "—"}
+                              {formatOptionalDate((roadmap as { createdAt?: string | Date | null }).createdAt)}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-right">
                               <Button 

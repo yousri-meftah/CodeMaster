@@ -1,14 +1,18 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
-import type { Problem, Roadmap } from "@shared/schema";
+import type { Problem, Roadmap } from "@/types/schema";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 export interface User {
   id: number;
-  name: string;
-  email: string;
-  phone: string;
-  is_admin: boolean;
+  name?: string | null;
+  username?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  bio?: string | null;
+  avatar?: string | null;
+  createdAt?: string | null;
+  is_admin?: boolean;
   role?: "user" | "recruiter" | "admin";
 }
 

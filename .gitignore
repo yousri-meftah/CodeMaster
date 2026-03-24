@@ -1,12 +1,7 @@
 node_modules
 dist
 .DS_Store
-server/public
-vite.config.ts.*
 *.tar.gz
-server
-shared
-.replit
 docs
 INTERVIEW_FEATURE_PLAN.md
 INTERVIEW_FRONTEND_PLAN.md

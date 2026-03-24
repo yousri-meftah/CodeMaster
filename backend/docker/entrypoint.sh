@@ -1,5 +1,11 @@
 set -e
 
+if [ "${RUNNING_IN_DOCKER}" = "1" ]; then
+  export POSTGRES_HOST="${POSTGRES_HOST:-postgres}"
+  export REDIS_URL="${REDIS_URL:-redis://redis:6379/0}"
+  export POSTGRES_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/${POSTGRES_DB}"
+fi
+
 echo 'Running Migrations'
 alembic upgrade head
 

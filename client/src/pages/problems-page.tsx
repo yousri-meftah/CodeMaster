@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { Problem } from "@shared/schema";
+import { Problem } from "@/types/schema";
 import { 
   Card, 
   CardContent 
@@ -26,8 +26,8 @@ const ProblemsPage = () => {
     location.includes("?") ? location.slice(location.indexOf("?")) : ""
   );
   
-  const initialCategory = searchParams.get("category") || "";
-  const initialDifficulty = searchParams.get("difficulty") || "";
+  const initialCategory = searchParams.get("category") || "all-categories";
+  const initialDifficulty = searchParams.get("difficulty") || "all-difficulties";
   
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState(initialCategory);
@@ -72,15 +72,15 @@ const ProblemsPage = () => {
   // Filter problems based on search term
   const filteredProblems = problemsPage?.items || [];
   const totalPages = problemsPage ? Math.ceil(problemsPage.total / pageSize) : 0;
-  const categories = (tags || []).map((tag: any) => tag.name);
+  const categories: string[] = (tags || []).map((tag: any) => tag.name);
 
   // Handle filter changes
   const handleCategoryChange = (value: string) => {
     setCategoryFilter(value);
     setPage(1);
     const params = new URLSearchParams();
-    if (value) params.append("category", value);
-    if (difficultyFilter) params.append("difficulty", difficultyFilter);
+    if (value && value !== "all-categories") params.append("category", value);
+    if (difficultyFilter && difficultyFilter !== "all-difficulties") params.append("difficulty", difficultyFilter);
     const queryString = params.toString();
     setLocation(`/problems${queryString ? `?${queryString}` : ""}`);
   };
@@ -89,8 +89,8 @@ const ProblemsPage = () => {
     setDifficultyFilter(value);
     setPage(1);
     const params = new URLSearchParams();
-    if (categoryFilter) params.append("category", categoryFilter);
-    if (value) params.append("difficulty", value);
+    if (categoryFilter && categoryFilter !== "all-categories") params.append("category", categoryFilter);
+    if (value && value !== "all-difficulties") params.append("difficulty", value);
     const queryString = params.toString();
     setLocation(`/problems${queryString ? `?${queryString}` : ""}`);
   };
@@ -135,14 +135,16 @@ const ProblemsPage = () => {
         </div>
 
         <Select value={categoryFilter} onValueChange={handleCategoryChange}>
-          
+          <SelectTrigger>
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all-categories">All Categories</SelectItem>
             {categories.map((category) => (
               <SelectItem key={category} value={category}>
                 {category
                   .split("-")
-                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
                   .join(" ")}
               </SelectItem>
             ))}
@@ -172,8 +174,8 @@ const ProblemsPage = () => {
           <p className="text-muted-foreground">No problems found matching your criteria.</p>
           <Button variant="link" onClick={() => {
             setSearchTerm("");
-            setCategoryFilter("");
-            setDifficultyFilter("");
+            setCategoryFilter("all-categories");
+            setDifficultyFilter("all-difficulties");
             setLocation("/problems");
           }}>
             Clear filters
@@ -199,7 +201,7 @@ const ProblemsPage = () => {
                     </div>
                     <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                       <a 
-                        href={problem.external_link} 
+                        href={problem.external_link ?? undefined} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
@@ -218,7 +220,7 @@ const ProblemsPage = () => {
                         <span key={category}>
                           {category
                             .split("-")
-                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
                             .join(" ")}
                           {index < (problem.tags?.length || 0) - 1 ? ", " : ""}
                         </span>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { activityAPI } from "@/services/api";
-import { UserSolution } from "@shared/schema";
+import { UserProgress, UserSolution } from "@/types/schema";
 import { 
   Card, 
   CardContent, 
@@ -40,7 +40,7 @@ const ProfilePage = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch user's progress
-  const { data: progress, isLoading: progressLoading } = useQuery({
+  const { data: progress, isLoading: progressLoading } = useQuery<UserProgress>({
     queryKey: ["/progress"],
     enabled: !!user,
   });
@@ -94,6 +94,9 @@ const ProfilePage = () => {
       </div>
     );
   }
+
+  const displayName = user.name || user.username || "User";
+  const displayInitial = displayName.charAt(0).toUpperCase();
 
   const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString("en-US", {
@@ -149,11 +152,11 @@ const ProfilePage = () => {
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row items-center md:items-start space-y-4 md:space-y-0 md:space-x-6">
             <div className="w-24 h-24 rounded-full flex items-center justify-center bg-primary/10 text-primary font-bold text-2xl">
-              {user.name ? user.name.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
+              {displayInitial}
             </div>
             
             <div className="flex-1 text-center md:text-left">
-              <h1 className="text-2xl font-bold">{user.name || user.username}</h1>
+              <h1 className="text-2xl font-bold">{displayName}</h1>
               <p className="text-muted-foreground mb-3">{user.bio || "Software Engineer"}</p>
               
               <div className="flex flex-wrap justify-center md:justify-start gap-2 mb-4">

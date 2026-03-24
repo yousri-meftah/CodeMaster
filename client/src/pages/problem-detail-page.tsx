@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Problem } from "@shared/schema";
+import { Problem } from "@/types/schema";
 import CodeEditor from "@/components/CodeEditor";
 import { 
   Card, 
