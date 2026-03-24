@@ -3,11 +3,11 @@ name: backend-ci
 on:
   push:
     paths:
-      - "backend/Backend/**"
+      - "backend/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     paths:
-      - "backend/Backend/**"
+      - "backend/**"
       - ".github/workflows/backend-ci.yml"
 
 jobs:
@@ -39,9 +39,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        working-directory: backend/Backend
+        working-directory: backend
         run: pip install -r requirements.txt
 
       - name: Run tests
-        working-directory: backend/Backend
+        working-directory: backend
         run: python -m pytest
