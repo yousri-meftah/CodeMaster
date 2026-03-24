@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-import httpx
 
+from app.services.piston import execute_piston
 from database import get_db
 from app.controllers.auth import get_current_user
 from app.models import Submission
-from config import settings
 from schemas import ExecutionRequest, ExecutionResult, SubmissionOut
 
 router = APIRouter()
@@ -13,25 +13,34 @@ router = APIRouter()
 
 @router.post("/execute", response_model=ExecutionResult)
 async def execute_code(payload: ExecutionRequest):
-    # Placeholder executor (accepts code + input and returns a stub response).
-    return ExecutionResult(stdout="Execution received", status="ok")
+    result = await run_in_threadpool(
+        execute_piston,
+        payload.language,
+        payload.code,
+        payload.input or "",
+    )
+    run = result.get("run", {}) or {}
+    return ExecutionResult(
+        stdout=run.get("stdout", "") or "",
+        stderr=run.get("stderr"),
+        status="ok" if run.get("code", 1) == 0 else "error",
+    )
 
 
 async def forward_execute(payload: ExecutionRequest) -> ExecutionResult:
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            res = await client.post(
-                settings.ALGO_EXECUTE_URL,
-                json={"code": payload.code, "input": payload.input or "", "language": payload.language},
-            )
-            if res.status_code >= 400:
-                raise HTTPException(status_code=res.status_code, detail=res.text)
-            data = res.json()
-            return ExecutionResult(
-                stdout=data.get("stdout", ""),
-                stderr=data.get("stderr"),
-                status=data.get("status", "ok"),
-            )
+        result = await run_in_threadpool(
+            execute_piston,
+            payload.language,
+            payload.code,
+            payload.input or "",
+        )
+        run = result.get("run", {}) or {}
+        return ExecutionResult(
+            stdout=run.get("stdout", "") or "",
+            stderr=run.get("stderr"),
+            status="ok" if run.get("code", 1) == 0 else "error",
+        )
     except HTTPException:
         raise
     except Exception as e:

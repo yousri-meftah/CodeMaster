@@ -50,12 +50,14 @@ class RedisConfig(BaseConfig):
 
 
 class PistonConfig(BaseConfig):
-    PISTON_URL: str = "https://piston.yousri-meftah.com/api/v2"
+    PISTON_URL: str 
     PISTON_TIMEOUT_SECONDS: int = 15
+    EXECUTION_MAX_WORKERS: int = 10
 
 
 class AlgoConfig(BaseConfig):
-    ALGO_EXECUTE_URL: str = "http://localhost:8000/execute"
+    ALGO_COMPILER_JAR: str 
+    JAVA_BIN: str 
 
 
 class Settings(

@@ -37,6 +37,18 @@ type ProblemStarterCode = {
   code: string;
 };
 
+const getStoredPreferredLanguage = (problemId: number) => {
+  if (typeof window === "undefined" || Number.isNaN(problemId)) {
+    return "javascript";
+  }
+
+  return (
+    localStorage.getItem(`problem:${problemId}:preferredLanguage`) ||
+    localStorage.getItem("preferredLanguage") ||
+    "javascript"
+  );
+};
+
 const ProblemDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const problemId = parseInt(id);
@@ -44,7 +56,7 @@ const ProblemDetailPage = () => {
   const { toast } = useToast();
   
   const [code, setCode] = useState("");
-  const [language, setLanguage] = useState("javascript");
+  const [language, setLanguage] = useState(() => getStoredPreferredLanguage(problemId));
   const [activeTab, setActiveTab] = useState("description");
   const [lastStarter, setLastStarter] = useState("");
   const [hasUserEdits, setHasUserEdits] = useState(false);
@@ -58,10 +70,10 @@ const ProblemDetailPage = () => {
   const [rightResultsHeight, setRightResultsHeight] = useState(35);
   const [isLargeLayout, setIsLargeLayout] = useState(false);
   const [activeCaseIndex, setActiveCaseIndex] = useState(0);
+  const [isEditorReady, setIsEditorReady] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<"vertical" | "right-horizontal" | null>(null);
-  const initializedKeysRef = useRef<Set<string>>(new Set());
 
   const { data: problem, isLoading: problemLoading } = useQuery<ProblemDetail>({
     queryKey: ["problem", problemId],
@@ -69,21 +81,12 @@ const ProblemDetailPage = () => {
     enabled: !isNaN(problemId),
   });
 
-  const { data: savedSolution } = useQuery({
-    queryKey: ["solution", problemId],
-    queryFn: () => problemsAPI.getSolutionByProblem(problemId),
-    enabled: !!user && !isNaN(problemId),
-  });
-
-  // Load preferred language
   useEffect(() => {
-    if (Number.isNaN(problemId)) return;
-    const storedLang =
-      localStorage.getItem(`problem:${problemId}:preferredLanguage`) ||
-      localStorage.getItem("preferredLanguage");
-    if (storedLang && storedLang !== language) {
-      setLanguage(storedLang);
-    }
+    setLanguage(getStoredPreferredLanguage(problemId));
+    setIsEditorReady(false);
+    setCode("");
+    setLastStarter("");
+    setHasUserEdits(false);
   }, [problemId]);
 
   const {
@@ -95,49 +98,19 @@ const ProblemDetailPage = () => {
     enabled: !!user && !isNaN(problemId),
   });
 
-  useEffect(() => {
-    if (savedSolution?.code) {
-      setCode(savedSolution.code);
-      setHasUserEdits(true);
-    }
-  }, [savedSolution]);
-
-  const detectLanguageMismatch = (lang: string, source: string) => {
-    const normalized = source.trim().toLowerCase();
-    if (!normalized) return null;
-    const looksLikeJs =
-      /\bfunction\b/.test(normalized) ||
-      /\bconsole\.log\b/.test(normalized) ||
-      /\b(let|const|var)\b/.test(normalized) ||
-      /=>/.test(normalized);
-    const looksLikePy =
-      /\bdef\b/.test(normalized) ||
-      /\bprint\(/.test(normalized) ||
-      /\bimport\b/.test(normalized);
-
-    if (lang === "python" && looksLikeJs) {
-      return "Your code looks like JavaScript, but Python is selected.";
-    }
-    if (lang === "javascript" && looksLikePy) {
-      return "Your code looks like Python, but JavaScript is selected.";
-    }
-    return null;
-  };
-
   const handleRun = async () => {
-    if (!code.trim()) {
+    if (!isEditorReady) {
       toast({
-        title: "Empty solution",
-        description: "Please write your solution before running.",
+        title: "Editor still loading",
+        description: "Wait a moment for the selected language code to load, then run again.",
         variant: "destructive",
       });
       return;
     }
-    const mismatch = detectLanguageMismatch(language, code);
-    if (mismatch) {
+    if (!code.trim()) {
       toast({
-        title: "Language mismatch",
-        description: `${mismatch} Please switch the language and try again.`,
+        title: "Empty solution",
+        description: "Please write your solution before running.",
         variant: "destructive",
       });
       return;
@@ -175,6 +148,14 @@ const ProblemDetailPage = () => {
   };
 
   const handleSubmit = async () => {
+    if (!isEditorReady) {
+      toast({
+        title: "Editor still loading",
+        description: "Wait a moment for the selected language code to load, then submit again.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!user) {
       toast({
         title: "Authentication required",
@@ -187,15 +168,6 @@ const ProblemDetailPage = () => {
       toast({
         title: "Empty solution",
         description: "Please write your solution before submitting.",
-        variant: "destructive",
-      });
-      return;
-    }
-    const mismatch = detectLanguageMismatch(language, code);
-    if (mismatch) {
-      toast({
-        title: "Language mismatch",
-        description: `${mismatch} Please switch the language and try again.`,
         variant: "destructive",
       });
       return;
@@ -273,33 +245,23 @@ const ProblemDetailPage = () => {
   useEffect(() => {
     if (!problem || Number.isNaN(problemId)) return;
     const key = `problem:${problemId}:lang:${language.toLowerCase()}`;
-    if (initializedKeysRef.current.has(key)) return;
+    setIsEditorReady(false);
     const stored = localStorage.getItem(key);
-    if (stored && stored !== code) {
+    if (stored !== null) {
       setCode(stored);
       setLastStarter(stored);
       setHasUserEdits(true);
-      initializedKeysRef.current.add(key);
-      return;
-    }
-
-    if (savedSolution?.code && !stored) {
-      setCode(savedSolution.code);
-      setLastStarter(savedSolution.code);
-      setHasUserEdits(true);
-      localStorage.setItem(key, savedSolution.code);
-      initializedKeysRef.current.add(key);
+      setIsEditorReady(true);
       return;
     }
 
     const starter = starterCodeMap.get(language.toLowerCase()) ?? "";
-    if (!starter) return;
     setCode(starter);
     setLastStarter(starter);
     setHasUserEdits(false);
     localStorage.setItem(key, starter);
-    initializedKeysRef.current.add(key);
-  }, [problem, problemId, language, starterCodeMap, savedSolution, code]);
+    setIsEditorReady(true);
+  }, [problem, problemId, language, starterCodeMap]);
 
   // Debounced localStorage save (protects against navigation before blur)
   useEffect(() => {
@@ -461,6 +423,8 @@ const ProblemDetailPage = () => {
     ? executionMode === "submit"
       ? "Submitting..."
       : "Running..."
+    : !isEditorReady
+      ? "Loading editor..."
     : executionResult
       ? `${executionResult.verdict} (${executionResult.passed}/${executionResult.total})`
       : "Ready";
@@ -565,7 +529,7 @@ const ProblemDetailPage = () => {
               variant="outline"
               size="sm"
               onClick={handleRun}
-              disabled={isExecuting}
+              disabled={isExecuting || !isEditorReady}
               className="h-9 rounded-lg px-4 text-xs font-bold uppercase tracking-[0.18em] dark:border-white/10 dark:bg-white/0 dark:hover:bg-white/5"
             >
               {isExecuting && executionMode === "run" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
@@ -574,7 +538,7 @@ const ProblemDetailPage = () => {
             <Button
               size="sm"
               onClick={handleSubmit}
-              disabled={isExecuting}
+              disabled={isExecuting || !isEditorReady}
               className="h-9 rounded-lg px-5 text-xs font-black uppercase tracking-[0.2em]"
             >
               {isExecuting && executionMode === "submit" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="mr-2 h-3.5 w-3.5" />}

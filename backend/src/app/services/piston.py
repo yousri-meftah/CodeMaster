@@ -1,4 +1,10 @@
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -51,19 +57,19 @@ def _runtime_key(language: str, version: str) -> str:
 def get_runtime(language: str) -> Tuple[str, str]:
     global _RUNTIME_CACHE_TS
     now = time.time()
-    lang = _normalize(language)
+    requested_lang = _normalize(language)
     if _RUNTIME_CACHE and (now - _RUNTIME_CACHE_TS) < _RUNTIME_CACHE_TTL_SECONDS:
-        version = _RUNTIME_CACHE.get(lang)
+        version = _RUNTIME_CACHE.get(requested_lang)
         if version:
-            return lang, version
+            return requested_lang, version
 
     runtimes = _fetch_runtimes()
     _RUNTIME_CACHE.clear()
     for rt in runtimes:
-        lang = _normalize(rt.get("language"))
+        runtime_lang = _normalize(rt.get("language"))
         version = rt.get("version")
-        if lang and version and lang not in _RUNTIME_CACHE:
-            _RUNTIME_CACHE[lang] = version
+        if runtime_lang and version and runtime_lang not in _RUNTIME_CACHE:
+            _RUNTIME_CACHE[runtime_lang] = version
         for alias in rt.get("aliases") or []:
             alias_norm = _normalize(alias)
             if alias_norm and version and alias_norm not in _RUNTIME_CACHE:
@@ -71,7 +77,7 @@ def get_runtime(language: str) -> Tuple[str, str]:
     _RUNTIME_CACHE_TS = now
 
     # Try exact/alias match first, then known synonyms for our UI languages
-    picked = _pick_runtime(runtimes, lang)
+    picked = _pick_runtime(runtimes, requested_lang)
     if not picked:
         synonyms = {
             "javascript": ["javascript", "js", "node", "nodejs"],
@@ -79,7 +85,7 @@ def get_runtime(language: str) -> Tuple[str, str]:
             "java": ["java"],
             "cpp": ["cpp", "c++", "cxx"],
         }
-        for alt in synonyms.get(lang, []):
+        for alt in synonyms.get(requested_lang, []):
             picked = _pick_runtime(runtimes, alt)
             if picked:
                 break
@@ -96,29 +102,68 @@ def _normalize_output(text: Optional[str]) -> str:
     return "\n".join(lines).strip()
 
 
+def _prepare_algo_stdin(source_code: str, stdin: str) -> str:
+    raw_stdin = stdin or ""
+    if "\n" in raw_stdin or "\r" in raw_stdin:
+        return raw_stdin
+
+    read_calls = len(re.findall(r"\blire\s*\(", source_code, flags=re.IGNORECASE))
+    if read_calls > 1 and re.search(r"\s+", raw_stdin):
+        return re.sub(r"\s+", "\n", raw_stdin.strip()) + "\n"
+
+    return raw_stdin
+
+
+def _execute_algo_compiler(source_code: str, stdin: str) -> Dict:
+    jar_path = Path(settings.ALGO_COMPILER_JAR)
+    if not jar_path.exists():
+        raise RuntimeError(f"Algo compiler jar not found: {jar_path}")
+
+    with tempfile.NamedTemporaryFile("w", suffix=".algo", delete=False, encoding="utf-8") as temp_file:
+        temp_file.write(source_code)
+        temp_path = Path(temp_file.name)
+
+    try:
+        completed = subprocess.run(
+            [settings.JAVA_BIN, "-jar", str(jar_path), str(temp_path)],
+            input=_prepare_algo_stdin(source_code, stdin),
+            text=True,
+            capture_output=True,
+            timeout=settings.PISTON_TIMEOUT_SECONDS,
+        )
+        return {
+            "run": {
+                "stdout": completed.stdout,
+                "stderr": completed.stderr,
+                "code": completed.returncode,
+                "signal": None,
+            }
+        }
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "run": {
+                "stdout": exc.stdout or "",
+                "stderr": (exc.stderr or "") + "\nExecution timed out",
+                "code": 124,
+                "signal": "timeout",
+            }
+        }
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Java runtime not found: {settings.JAVA_BIN}") from exc
+    finally:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+
+
 def execute_piston(
     language: str,
     source_code: str,
     stdin: str,
 ) -> Dict:
     if _normalize(language) == "algo":
-        # Support both legacy and current algo executors.
-        payload = {
-            "code": source_code,
-            "algo_code": source_code,
-            "input": stdin,
-            "language": "algo",
-        }
-        resp = requests.post(settings.ALGO_EXECUTE_URL, json=payload, timeout=settings.PISTON_TIMEOUT_SECONDS)
-        try:
-            resp.raise_for_status()
-        except requests.HTTPError as exc:
-            raise RuntimeError(f"Algo /execute error: {resp.status_code} {resp.text}") from exc
-        data = resp.json() if resp.content else {}
-        stdout = data.get("stdout", data.get("output", ""))
-        stderr = data.get("stderr")
-        code = data.get("code", 0)
-        return {"run": {"stdout": stdout, "stderr": stderr, "code": code, "signal": None}}
+        return _execute_algo_compiler(source_code=source_code, stdin=stdin)
 
     lang, version = get_runtime(language)
     payload = {
@@ -141,8 +186,10 @@ def execute_test_cases(
     source_code: str,
     test_cases: List[Dict],
 ) -> List[Dict]:
-    results: List[Dict] = []
-    for tc in test_cases:
+    if not test_cases:
+        return []
+
+    def _run_test_case(tc: Dict) -> Dict:
         result = execute_piston(
             language=language,
             source_code=source_code,
@@ -163,24 +210,27 @@ def execute_test_cases(
         if signal:
             status_desc = f"Signal {signal}"
 
-        results.append(
-            {
-                "id": tc.get("id"),
-                "input_text": tc.get("input_text"),
-                "output_text": tc.get("output_text"),
-                "is_sample": tc.get("is_sample", True),
-                "stdout": stdout,
-                "stderr": stderr,
-                "compile_output": None,
-                "status_id": status_code,
-                "status": status_desc,
-                "time": None,
-                "memory": None,
-                "passed": passed,
-            }
-        )
+        return {
+            "id": tc.get("id"),
+            "input_text": tc.get("input_text"),
+            "output_text": tc.get("output_text"),
+            "is_sample": tc.get("is_sample", True),
+            "stdout": stdout,
+            "stderr": stderr,
+            "compile_output": None,
+            "status_id": status_code,
+            "status": status_desc,
+            "time": None,
+            "memory": None,
+            "passed": passed,
+        }
 
-    return results
+    max_workers = max(1, min(settings.EXECUTION_MAX_WORKERS, len(test_cases)))
+    if max_workers == 1:
+        return [_run_test_case(tc) for tc in test_cases]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(_run_test_case, test_cases))
 
 
 def summarize_results(results: List[Dict]) -> Dict[str, object]:

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
-from api import auth ,user , Tag , SavedSolution,Roadmap , Problem , Comment, Progress, Article, Submission, Execution, Interviews, Interview 
+from api import auth ,user , Tag , SavedSolution,Roadmap , Problem , Comment, Progress, Article, Submission, Interviews, Interview 
 
 app = FastAPI(
     title='PointOfSell',
@@ -39,7 +39,6 @@ app.include_router(Comment.router, prefix="/comment", tags=["comment"])
 app.include_router(Progress.router, prefix="/progress", tags=["progress"])
 app.include_router(Article.router, prefix="/articles", tags=["articles"])
 app.include_router(Submission.router, prefix="/submission", tags=["submission"])
-app.include_router(Execution.router, tags=["execution"])
 app.include_router(Interviews.router, prefix="/interviews", tags=["interviews"])
 app.include_router(Interview.router, prefix="/interview", tags=["interview"])
 
