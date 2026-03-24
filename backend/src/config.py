@@ -46,7 +46,7 @@ class MailConfig(BaseConfig):
     MAIL_FROM_NAME: str
 
 class RedisConfig(BaseConfig):
-    REDIS_URL : str
+    REDIS_URL : str = "redis://localhost:6379/0"
 
 
 class PistonConfig(BaseConfig):
@@ -60,6 +60,14 @@ class AlgoConfig(BaseConfig):
     JAVA_BIN: str = "java"
 
 
+class RateLimitConfig(BaseConfig):
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_AUTH_LOGIN: str = "10/minute"
+    RATE_LIMIT_AUTH_REGISTER: str = "5/minute"
+    RATE_LIMIT_SUBMISSION_RUN: str = "30/minute"
+    RATE_LIMIT_SUBMISSION_SUBMIT: str = "10/minute"
+
+
 class Settings(
     PostgresConfig,
     JwtConfig,
@@ -67,6 +75,7 @@ class Settings(
     RedisConfig,
     PistonConfig,
     AlgoConfig,
+    RateLimitConfig,
 ):
     pass
 

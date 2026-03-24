@@ -18,12 +18,12 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - POSTGRES_HOST=postgres
-      - REDIS_URL=redis://redis:6379/0
+      # - REDIS_URL=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
+      # redis:
+      #   condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8000/docs"]
       interval: 10s
@@ -50,19 +50,19 @@ services:
     networks:
       - main
 
-  redis:
-    container_name: "codemaster-redis-dev"
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - main
+  # redis:
+  #   container_name: "codemaster-redis-dev"
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - main
 
 networks:
   main:
 
 volumes:
   postgres-data:
-  redis-data:
+  # redis-data:

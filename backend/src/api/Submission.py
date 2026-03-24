@@ -7,13 +7,18 @@ from app.controllers.submission import (
     run_problem_submission,
     submit_problem_solution,
 )
+from app.services.rate_limiter import rate_limit_from_setting
 from database import get_db
 from schemas import SubmissionListItem, SubmissionRequest, SubmissionSummary
 
 router = APIRouter()
 
 
-@router.post("/run", response_model=SubmissionSummary)
+@router.post(
+    "/run",
+    response_model=SubmissionSummary,
+    dependencies=[Depends(rate_limit_from_setting("RATE_LIMIT_SUBMISSION_RUN", "submission:run"))],
+)
 def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
     try:
         return run_problem_submission(
@@ -28,7 +33,11 @@ def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
 
-@router.post("/submit", response_model=SubmissionSummary)
+@router.post(
+    "/submit",
+    response_model=SubmissionSummary,
+    dependencies=[Depends(rate_limit_from_setting("RATE_LIMIT_SUBMISSION_SUBMIT", "submission:submit"))],
+)
 def submit_submission(
     payload: SubmissionRequest,
     db: Session = Depends(get_db),

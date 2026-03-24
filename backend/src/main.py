@@ -1,7 +1,13 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from api import auth ,user , Tag , SavedSolution,Roadmap , Problem , Comment, Progress, Article, Submission, Interviews, Interview 
+
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+except ImportError:  # optional in local environments without network install
+    Instrumentator = None
 
 app = FastAPI(
     title='PointOfSell',
@@ -41,6 +47,14 @@ app.include_router(Article.router, prefix="/articles", tags=["articles"])
 app.include_router(Submission.router, prefix="/submission", tags=["submission"])
 app.include_router(Interviews.router, prefix="/interviews", tags=["interviews"])
 app.include_router(Interview.router, prefix="/interview", tags=["interview"])
+
+@app.get("/healthz", include_in_schema=False)
+def healthz():
+    return JSONResponse({"status": "ok"})
+
+
+if Instrumentator is not None:
+    Instrumentator().instrument(app).expose(app, include_in_schema=False, endpoint="/metrics")
 
 
 

@@ -11,6 +11,7 @@ CodeMaster is a full-stack coding practice platform inspired by LeetCode. Users 
 - `backend/migrations/`: Alembic migrations.
 - `backend/docker/`: Dockerfiles and entrypoint scripts.
 - `client/src/types/`: frontend-only shared types.
+- `deploy/`: production nginx + monitoring configs.
 - `docs/`: planning and project notes.
 
 ## Local Run Commands
@@ -31,4 +32,24 @@ pip install -r requirements.txt
 uvicorn src.main:app --reload
 ```
 
+## One-Command Production Stack
+
+From project root:
+
+```bash
+make prod-up
+```
+
+This starts:
+- frontend (built and served by nginx)
+- backend (with migrations on startup)
+- postgres
+- prometheus
+- grafana
+
+Useful endpoints after startup:
+- app: `http://localhost`
+- backend health: `http://localhost/healthz`
+- prometheus: `http://localhost:9090`
+- grafana: `http://localhost:3001` (admin/admin)
 

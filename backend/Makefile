@@ -11,7 +11,7 @@ PORT ?= 8000
 MSG ?= new_migration
 
 .PHONY: help install run test migrate makemigrations \
-	up down rebuild logs ps shell dbshell redis-cli \
+	up down rebuild logs ps shell dbshell \
 	prod-up prod-down prod-logs
 
 help:
@@ -28,7 +28,7 @@ help:
 	@echo "  make ps              Show Docker service status"
 	@echo "  make shell           Open a shell in the backend container"
 	@echo "  make dbshell         Open psql in the postgres container"
-	@echo "  make redis-cli       Open redis-cli in the redis container"
+	@echo "  redis is disabled in docker compose for now"
 	@echo "  make prod-up         Start production Docker services"
 	@echo "  make prod-down       Stop production Docker services"
 	@echo "  make prod-logs       Tail production backend logs"
@@ -68,9 +68,6 @@ shell:
 
 dbshell:
 	$(COMPOSE_DEV) exec postgres sh -lc 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
-
-redis-cli:
-	$(COMPOSE_DEV) exec redis redis-cli
 
 prod-up:
 	$(COMPOSE_PROD) up --build -d
