@@ -50,14 +50,14 @@ class RedisConfig(BaseConfig):
 
 
 class PistonConfig(BaseConfig):
-    PISTON_URL: str 
+    PISTON_URL: str = "https://piston.yousri-meftah.com/api/v2"
     PISTON_TIMEOUT_SECONDS: int = 15
     EXECUTION_MAX_WORKERS: int = 10
 
 
 class AlgoConfig(BaseConfig):
-    ALGO_COMPILER_JAR: str 
-    JAVA_BIN: str 
+    ALGO_COMPILER_JAR: str = r"C:\Program Files\algo-compiler\algo-compiler-1.6.0.jar"
+    JAVA_BIN: str = "java"
 
 
 class Settings(
