@@ -23,6 +23,7 @@ _REQUIRED_ENV_DEFAULTS = {
     "POSTGRES_PASSWORD": "test",
     "POSTGRES_HOST": "localhost",
     "RATE_LIMIT_ENABLED": "false",
+    "ADMIN_BOOTSTRAP_ENABLED": "false",
 }
 
 for key, value in _REQUIRED_ENV_DEFAULTS.items():

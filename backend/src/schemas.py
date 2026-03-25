@@ -278,11 +278,32 @@ class InterviewCandidateOut(BaseModel):
     email: str
     token: str
     status: str
+    invite_status: str = "pending"
+    invite_error: Optional[str] = None
+    invite_sent_at: Optional[datetime] = None
+    invite_attempts: int = 0
     started_at: Optional[datetime] = None
     submitted_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InterviewInviteResultOut(BaseModel):
+    candidate_id: int
+    email: str
+    status: str
+    error: Optional[str] = None
+
+
+class InterviewCandidateBatchOut(BaseModel):
+    candidates: List[InterviewCandidateOut]
+    invite_results: List[InterviewInviteResultOut]
+
+
+class InterviewResendInviteOut(BaseModel):
+    candidate: InterviewCandidateOut
+    invite: InterviewInviteResultOut
 
 
 class InterviewCandidatesPageOut(BaseModel):

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Clock3, Copy, Loader2, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, Clock3, Copy, Loader2, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -27,6 +27,17 @@ const statusTone = (status: string) => {
   }
 };
 
+const inviteTone = (status: string) => {
+  switch (status) {
+    case "sent":
+      return "default";
+    case "failed":
+      return "destructive";
+    default:
+      return "outline";
+  }
+};
+
 const InterviewDetailPage = () => {
   const params = useParams<{ id: string }>();
   const interviewId = Number(params.id);
@@ -37,6 +48,14 @@ const InterviewDetailPage = () => {
   const [candidatePage, setCandidatePage] = useState(1);
   const [candidateStatus, setCandidateStatus] = useState<string>("all");
   const [candidateSearch, setCandidateSearch] = useState("");
+
+  const getInviteCooldownSeconds = (sentAt?: string | null, inviteStatus?: string) => {
+    if (!sentAt || inviteStatus !== "sent") return 0;
+    const sentMs = new Date(sentAt).getTime();
+    if (Number.isNaN(sentMs)) return 0;
+    const elapsed = Math.floor((Date.now() - sentMs) / 1000);
+    return Math.max(0, 30 * 60 - elapsed);
+  };
 
   const { data: interview, isLoading } = useQuery<InterviewDetail>({
     queryKey: ["interview", interviewId],
@@ -68,14 +87,55 @@ const InterviewDetailPage = () => {
         .filter(Boolean);
       return interviewsAPI.addCandidates(interviewId, emails);
     },
-    onSuccess: () => {
+    onSuccess: (payload) => {
       queryClient.invalidateQueries({ queryKey: ["interview-candidates", interviewId] });
       setCandidateEmails("");
       setIsAddCandidateOpen(false);
+      const failed = payload.invite_results.filter((row) => row.status === "failed").length;
+      if (failed > 0) {
+        toast({
+          title: "Candidates added with invite failures",
+          description: `${failed} invite email(s) failed. You can resend from the candidate list.`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ title: "Candidates added", description: "The new candidates are now visible in the list." });
     },
     onError: (error: Error) => {
       toast({ title: "Add candidate failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resendInviteMutation = useMutation({
+    mutationFn: ({ candidateId }: { candidateId: number }) =>
+      interviewsAPI.resendCandidateInvite(interviewId, candidateId),
+    onSuccess: (payload) => {
+      queryClient.invalidateQueries({ queryKey: ["interview-candidates", interviewId] });
+      if (payload.invite.status === "sent") {
+        toast({ title: "Invite sent", description: `Invitation re-sent to ${payload.invite.email}.` });
+      } else {
+        toast({
+          title: "Invite failed",
+          description: payload.invite.error ?? "Email delivery failed.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Resend failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteInterviewMutation = useMutation({
+    mutationFn: () => interviewsAPI.delete(interviewId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
+      toast({ title: "Interview deleted", description: "Interview and related candidates were removed." });
+      setLocation("/interviews");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -131,11 +191,48 @@ const InterviewDetailPage = () => {
               <UserPlus className="mr-2 h-4 w-4" />
               Add Candidates
             </Button>
+            <Button variant="outline" onClick={() => setLocation(`/interviews/${interviewId}/edit`)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteInterviewMutation.isPending}
+              onClick={() => {
+                const accepted = window.confirm("Delete this interview permanently?");
+                if (!accepted) return;
+                deleteInterviewMutation.mutate();
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Interview Overview</CardTitle>
+            <CardDescription>Quick summary before you drill into a specific candidate.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Candidates (page)</p>
+              <p className="mt-2 text-2xl font-semibold">{candidates.length}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Submitted (page)</p>
+              <p className="mt-2 text-2xl font-semibold">{candidates.filter((candidate) => candidate.status === "submitted").length}</p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Active (page)</p>
+              <p className="mt-2 text-2xl font-semibold">{candidates.filter((candidate) => candidate.status === "started").length}</p>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -175,12 +272,20 @@ const InterviewDetailPage = () => {
                     <TableRow>
                       <TableHead>Candidate</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Invite</TableHead>
                       <TableHead>Started</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {candidates.map((candidate) => (
+                      (() => {
+                        const cooldownSeconds = getInviteCooldownSeconds(candidate.invite_sent_at, candidate.invite_status);
+                        const isResendDisabled = cooldownSeconds > 0;
+                        const isRowPending =
+                          resendInviteMutation.isPending &&
+                          resendInviteMutation.variables?.candidateId === candidate.id;
+                        return (
                       <TableRow
                         key={candidate.id}
                         className="cursor-pointer"
@@ -196,6 +301,18 @@ const InterviewDetailPage = () => {
                           <Badge variant={statusTone(candidate.status) as "default" | "secondary" | "destructive" | "outline"}>
                             {candidate.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <Badge variant={inviteTone(candidate.invite_status) as "default" | "secondary" | "destructive" | "outline"}>
+                              {candidate.invite_status}
+                            </Badge>
+                            {candidate.invite_status === "failed" && candidate.invite_error && (
+                              <p className="max-w-56 truncate text-xs text-destructive" title={candidate.invite_error}>
+                                {candidate.invite_error}
+                              </p>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {candidate.started_at ? new Date(candidate.started_at).toLocaleString() : "Not started"}
@@ -222,9 +339,26 @@ const InterviewDetailPage = () => {
                             >
                               Review
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={isResendDisabled || isRowPending}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                resendInviteMutation.mutate({ candidateId: candidate.id });
+                              }}
+                            >
+                              {isRowPending
+                                ? "Sending..."
+                                : isResendDisabled
+                                  ? `Resend in ${Math.ceil(cooldownSeconds / 60)}m`
+                                  : "Resend Invite"}
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
+                        );
+                      })()
                     ))}
                   </TableBody>
                 </Table>
@@ -277,27 +411,6 @@ const InterviewDetailPage = () => {
             </CardContent>
           </Card>
         </div>
-
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle>Interview Overview</CardTitle>
-            <CardDescription>Quick summary before you drill into a specific candidate.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-            <div className="rounded-lg border p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Candidates (page)</p>
-              <p className="mt-2 text-2xl font-semibold">{candidates.length}</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Submitted (page)</p>
-              <p className="mt-2 text-2xl font-semibold">{candidates.filter((candidate) => candidate.status === "submitted").length}</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Active (page)</p>
-              <p className="mt-2 text-2xl font-semibold">{candidates.filter((candidate) => candidate.status === "started").length}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Dialog open={isAddCandidateOpen} onOpenChange={setIsAddCandidateOpen}>

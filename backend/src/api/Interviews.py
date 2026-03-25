@@ -7,12 +7,15 @@ from app.services.interview import (
     generate_candidate_token,
     load_interview_or_404,
     replace_interview_problems,
+    send_candidate_invite,
 )
 from database import get_db
 from schemas import (
     InterviewCandidateBatchIn,
+    InterviewCandidateBatchOut,
     InterviewCandidateOut,
     InterviewCandidateReviewOut,
+    InterviewResendInviteOut,
     InterviewCandidateStatusUpdateIn,
     InterviewCandidatesPageOut,
     InterviewDetailOut,
@@ -41,6 +44,11 @@ def _ensure_owner_or_admin(interview: Interview, user) -> None:
         return
     if interview.recruiter_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+
+def _ensure_owner(interview: Interview, user) -> None:
+    if interview.recruiter_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only interview owner can perform this action")
 
 
 def _serialize_interview(interview: Interview) -> dict:
@@ -156,7 +164,7 @@ def update_interview(interview_id: int, data: InterviewIn, db: Session = Depends
     interview = _load_interview_detail(db, interview_id)
     if not interview:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
-    _ensure_owner_or_admin(interview, user)
+    _ensure_owner(interview, user)
     interview.title = data.title
     interview.description = data.description
     interview.difficulty = data.difficulty
@@ -170,7 +178,17 @@ def update_interview(interview_id: int, data: InterviewIn, db: Session = Depends
     return _serialize_interview(interview)
 
 
-@router.post("/{interview_id}/candidates", response_model=list[InterviewCandidateOut])
+@router.delete("/{interview_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_interview(interview_id: int, db: Session = Depends(get_db), user=Depends(require_recruiter)):
+    interview = db.query(Interview).filter(Interview.id == interview_id).first()
+    if not interview:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview not found")
+    _ensure_owner(interview, user)
+    db.delete(interview)
+    db.commit()
+
+
+@router.post("/{interview_id}/candidates", response_model=InterviewCandidateBatchOut)
 def add_candidates(
     interview_id: int,
     data: InterviewCandidateBatchIn,
@@ -211,10 +229,39 @@ def add_candidates(
         )
         db.add(candidate)
         created.append(candidate)
+    db.flush()
+    invite_results = [send_candidate_invite(db, item) for item in created]
     db.commit()
     for item in created:
         db.refresh(item)
-    return created
+    return {"candidates": created, "invite_results": invite_results}
+
+
+@router.post("/{interview_id}/candidates/{candidate_id}/resend-invite", response_model=InterviewResendInviteOut)
+def resend_candidate_invite(
+    interview_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_recruiter),
+):
+    interview = load_interview_or_404(db, interview_id)
+    _ensure_owner_or_admin(interview, user)
+    candidate = (
+        db.query(InterviewCandidate)
+        .options(joinedload(InterviewCandidate.interview))
+        .filter(
+            InterviewCandidate.id == candidate_id,
+            InterviewCandidate.interview_id == interview_id,
+        )
+        .first()
+    )
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+    invite = send_candidate_invite(db, candidate, enforce_resend_cooldown=True)
+    db.commit()
+    db.refresh(candidate)
+    return {"candidate": candidate, "invite": invite}
 
 
 @router.get("/{interview_id}/candidates", response_model=InterviewCandidatesPageOut)

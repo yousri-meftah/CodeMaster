@@ -17,9 +17,12 @@ router = APIRouter()
 @router.post(
     "/run",
     response_model=SubmissionSummary,
-    dependencies=[Depends(rate_limit_from_setting("RATE_LIMIT_SUBMISSION_RUN", "submission:run"))],
 )
-def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
+def run_submission(
+    payload: SubmissionRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(rate_limit_from_setting("RATE_LIMIT_SUBMISSION_RUN", "submission:run")),
+):
     try:
         return run_problem_submission(
             db=db,
@@ -36,12 +39,12 @@ def run_submission(payload: SubmissionRequest, db: Session = Depends(get_db)):
 @router.post(
     "/submit",
     response_model=SubmissionSummary,
-    dependencies=[Depends(rate_limit_from_setting("RATE_LIMIT_SUBMISSION_SUBMIT", "submission:submit"))],
 )
 def submit_submission(
     payload: SubmissionRequest,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    _: None = Depends(rate_limit_from_setting("RATE_LIMIT_SUBMISSION_SUBMIT", "submission:submit")),
 ):
     try:
         if not user:

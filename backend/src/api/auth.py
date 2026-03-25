@@ -18,9 +18,12 @@ router = APIRouter()
 @router.post(
     "/register",
     response_model=register_return,
-    dependencies=[Depends(rate_limit_from_setting("RATE_LIMIT_AUTH_REGISTER", "auth:register"))],
 )
-def register(user: UserCreate, db: Session = Depends(get_db)):
+def register(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(rate_limit_from_setting("RATE_LIMIT_AUTH_REGISTER", "auth:register")),
+):
     try:
         register_user(user, db)
     except UserEmailAlreadyExistsException:
@@ -32,9 +35,12 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 @router.post(
     "/login",
     response_model=Token,
-    dependencies=[Depends(rate_limit_from_setting("RATE_LIMIT_AUTH_LOGIN", "auth:login"))],
 )
-async def login(data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(
+    data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+    _: None = Depends(rate_limit_from_setting("RATE_LIMIT_AUTH_LOGIN", "auth:login")),
+):
     try:
         Token_return = authenticate_user(data,db)
     except UserNotFoundException:

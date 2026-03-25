@@ -44,6 +44,9 @@ class MailConfig(BaseConfig):
     MAIL_PORT: str
     MAIL_SERVER: str
     MAIL_FROM_NAME: str
+    MAIL_SEND_ENABLED: bool = True
+    INTERVIEW_PUBLIC_BASE_URL: str = "http://localhost:5173"
+    INTERVIEW_INVITE_RESEND_COOLDOWN_MINUTES: int = 30
 
 class RedisConfig(BaseConfig):
     REDIS_URL : str = "redis://localhost:6379/0"
@@ -64,8 +67,15 @@ class RateLimitConfig(BaseConfig):
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_AUTH_LOGIN: str = "10/minute"
     RATE_LIMIT_AUTH_REGISTER: str = "5/minute"
-    RATE_LIMIT_SUBMISSION_RUN: str = "30/minute"
-    RATE_LIMIT_SUBMISSION_SUBMIT: str = "10/minute"
+    RATE_LIMIT_SUBMISSION_RUN: str = "12/minute"
+    RATE_LIMIT_SUBMISSION_SUBMIT: str = "6/minute"
+
+
+class AdminBootstrapConfig(BaseConfig):
+    ADMIN_BOOTSTRAP_ENABLED: bool = True
+    ADMIN_EMAIL: str = ""
+    ADMIN_PASSWORD: str = ""
+    ADMIN_NAME: str = "Administrator"
 
 
 class Settings(
@@ -76,6 +86,7 @@ class Settings(
     PistonConfig,
     AlgoConfig,
     RateLimitConfig,
+    AdminBootstrapConfig,
 ):
     pass
 

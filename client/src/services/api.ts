@@ -133,9 +133,30 @@ export type InterviewCandidate = {
   email: string;
   token: string;
   status: string;
+  invite_status: "pending" | "sent" | "failed";
+  invite_error?: string | null;
+  invite_sent_at?: string | null;
+  invite_attempts: number;
   started_at?: string | null;
   submitted_at?: string | null;
   last_seen_at?: string | null;
+};
+
+export type InterviewInviteResult = {
+  candidate_id: number;
+  email: string;
+  status: "pending" | "sent" | "failed";
+  error?: string | null;
+};
+
+export type InterviewCandidateBatch = {
+  candidates: InterviewCandidate[];
+  invite_results: InterviewInviteResult[];
+};
+
+export type InterviewResendInvite = {
+  candidate: InterviewCandidate;
+  invite: InterviewInviteResult;
 };
 
 export type InterviewCandidateReview = InterviewCandidate & {
@@ -482,8 +503,15 @@ export const interviewsAPI = {
     const response = await api.put(`/interviews/${id}`, payload);
     return response.data;
   },
-  addCandidates: async (id: number, emails: string[]): Promise<InterviewCandidate[]> => {
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/interviews/${id}`);
+  },
+  addCandidates: async (id: number, emails: string[]): Promise<InterviewCandidateBatch> => {
     const response = await api.post(`/interviews/${id}/candidates`, { emails });
+    return response.data;
+  },
+  resendCandidateInvite: async (interviewId: number, candidateId: number): Promise<InterviewResendInvite> => {
+    const response = await api.post(`/interviews/${interviewId}/candidates/${candidateId}/resend-invite`);
     return response.data;
   },
   updateCandidateStatus: async (interviewId: number, candidateId: number, status: string): Promise<InterviewCandidate> => {

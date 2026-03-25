@@ -20,7 +20,6 @@ import {
   Play,
   RotateCcw,
   Send,
-  Settings2,
   Timer,
   XCircle,
 } from "lucide-react";
@@ -532,6 +531,9 @@ const InterviewSessionPage = () => {
   }, [session?.status, token]);
 
   const handleProblemChange = (problemId: number) => {
+    if (problemId === selectedProblemId) {
+      return;
+    }
     if (isDirty && problemIdRef.current && codeRef.current.trim()) {
       saveMutation.mutate({
         token,
@@ -545,6 +547,12 @@ const InterviewSessionPage = () => {
         ),
       });
     }
+    // Clear previous problem context immediately while next problem loads.
+    setExecutionResult(null);
+    setRunOutput(null);
+    setActiveCaseIndex(0);
+    setCode("");
+    setIsDirty(false);
     setSelectedProblemId(problemId);
   };
 
@@ -605,6 +613,9 @@ const InterviewSessionPage = () => {
       });
       return;
     }
+    setExecutionResult(null);
+    setActiveCaseIndex(0);
+    setRunOutput("Running tests...");
     await runMutation.mutateAsync();
   };
 
@@ -790,19 +801,19 @@ const InterviewSessionPage = () => {
 
         <section ref={splitRef} className="flex min-w-0 flex-1 overflow-hidden">
           <div
-            className="flex min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-white/5 dark:bg-[#0f1930]"
+            className="flex min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950"
             style={{ width: `${leftWidth}%` }}
           >
-            <div className="border-b border-slate-200 bg-slate-100 px-5 py-3 dark:border-white/5 dark:bg-[#11141b]">
+            <div className="border-b border-slate-200 bg-slate-100 px-5 py-3 dark:border-white/10 dark:bg-slate-900">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-headline text-xl font-bold text-slate-900 dark:text-[#dee5ff]">{currentProblemMeta?.title ?? "Problem"}</h2>
-                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-[#a3aac4]">
+                  <h2 className="font-headline text-xl font-bold text-slate-900 dark:text-slate-100">{currentProblemMeta?.title ?? "Problem"}</h2>
+                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300">
                     {currentProblemMeta?.difficulty ?? "Interview Problem"}
                   </p>
                 </div>
                 {currentProblemMeta?.difficulty && (
-                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-700 dark:border-[#40485d] dark:bg-[#192540] dark:text-[#dee5ff]">
+                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     {currentProblemMeta.difficulty}
                   </Badge>
                 )}
@@ -812,25 +823,25 @@ const InterviewSessionPage = () => {
             <ScrollArea className="min-h-0 flex-1">
               <div className="space-y-8 p-6">
                 <div className="space-y-4">
-                  <div className="whitespace-pre-wrap text-sm leading-8 text-slate-700 dark:text-[#dee5ff]/88">
+                  <div className="whitespace-pre-wrap rounded-xl border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-sm leading-8 text-slate-700 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100">
                     {currentProblemQuery.data?.description || currentProblemMeta?.description || "Review the prompt and write your solution."}
                   </div>
                 </div>
 
                 {sampleCases.length > 0 && (
                   <div className="space-y-4">
-                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-[#a3aac4]">Examples</div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">Examples</div>
                     {sampleCases.map((testCase, index) => (
-                      <div key={testCase.id} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-[#141f38]">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-[#a3aac4]">Example {index + 1}</div>
+                      <div key={testCase.id} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/80">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-slate-300">Example {index + 1}</div>
                         <div>
-                          <p className="text-xs font-semibold text-slate-900 dark:text-[#dee5ff]">Input</p>
-                          <pre className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-3 font-mono text-xs text-slate-900 dark:border-white/5 dark:bg-black/10 dark:text-[#dee5ff]">
+                          <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Input</p>
+                          <pre className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-3 font-mono text-xs text-slate-900 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                             {testCase.input_text}
                           </pre>
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-slate-900 dark:text-[#dee5ff]">Output</p>
+                          <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">Output</p>
                           <pre className="mt-2 overflow-x-auto rounded-xl border border-emerald-200 bg-emerald-50 p-3 font-mono text-xs text-emerald-700 dark:border-[#69f6b8]/20 dark:bg-[#69f6b8]/10 dark:text-[#69f6b8]">
                             {testCase.output_text}
                           </pre>
@@ -842,8 +853,8 @@ const InterviewSessionPage = () => {
 
                 {currentProblemQuery.data?.constraints && (
                   <div className="space-y-3">
-                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-[#a3aac4]">Constraints</div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-8 text-slate-600 dark:border-white/5 dark:bg-[#141f38] dark:text-[#a3aac4]">
+                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">Constraints</div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-8 text-slate-700 dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-200">
                       {currentProblemQuery.data.constraints}
                     </div>
                   </div>
@@ -942,10 +953,7 @@ const InterviewSessionPage = () => {
               style={{ height: `${rightResultsHeight}%` }}
             >
               <div className="flex h-8 items-center justify-between border-b border-slate-200 bg-white px-4 dark:border-white/5 dark:bg-[#141f38]">
-                <div className="flex gap-5">
-                  <span className="border-b-2 border-emerald-500 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:border-[#69f6b8] dark:text-[#69f6b8]">Console</span>
-                  <span className="pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-[#a3aac4]">Test Results</span>
-                </div>
+                <span className="border-b-2 border-emerald-500 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600 dark:border-[#69f6b8] dark:text-[#69f6b8]">Test Results</span>
                 <span className="text-xs text-slate-500 dark:text-[#a3aac4]">{executionResult ? `${executionResult.passed}/${executionResult.total} passed` : "Waiting for run"}</span>
               </div>
 
@@ -1019,7 +1027,7 @@ const InterviewSessionPage = () => {
                       )}
                     </>
                   ) : (
-                    <div className="text-slate-500 dark:text-[#a3aac4]">{runOutput ?? "Run your code to see console output."}</div>
+                    <div className="text-slate-500 dark:text-[#a3aac4]">{runOutput ?? "Run your code to see test results."}</div>
                   )}
                 </div>
               </ScrollArea>
@@ -1030,6 +1038,8 @@ const InterviewSessionPage = () => {
             <Button
               variant="destructive"
               className="h-10 w-10 rounded-lg bg-rose-700 p-0 hover:bg-rose-600"
+              title="Finish interview"
+              aria-label="Finish interview"
               onClick={async () => {
                 if (!window.confirm("Finish the interview now?")) return;
                 loggingEnabledRef.current = false;
@@ -1040,9 +1050,6 @@ const InterviewSessionPage = () => {
             >
               {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
-            <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-500 transition-colors hover:text-sky-600 dark:bg-[#192540] dark:text-[#a3aac4] dark:hover:text-[#7aafff]">
-              <Settings2 className="h-4 w-4" />
-            </button>
             <div className="mt-auto flex flex-col items-center gap-3">
               <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.35)] dark:bg-[#69f6b8] dark:shadow-[0_0_8px_rgba(105,246,184,0.5)]" />
               <span className="[writing-mode:vertical-lr] rotate-180 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-[#a3aac4]">

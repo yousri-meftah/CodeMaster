@@ -5,3 +5,11 @@ dist
 docs
 INTERVIEW_FEATURE_PLAN.md
 INTERVIEW_FRONTEND_PLAN.md
+output
+tmp
+.env
+.env.*
+backend/envs/backend.env
+backend/envs/pg.env
+client/.env
+client/.env.*

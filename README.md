@@ -1,22 +1,51 @@
 # CodeMaster
 
-CodeMaster is a full-stack coding practice platform inspired by LeetCode. Users can browse problems, solve them in an online editor, submit solutions, and track progress. It also includes recruiter-managed interview flows.
+CodeMaster is a full-stack coding platform (practice + recruiter interview workflow) with:
+- React + Vite frontend
+- FastAPI backend
+- Postgres
+- Nginx reverse proxy (production stack)
+- Prometheus + Grafana monitoring
 
-## Project Layout
+## Project Structure
 
-- `client/`: the React + Vite frontend.
-- `backend/`: the FastAPI backend project.
-- `backend/src/`: backend application code.
-- `backend/tests/`: backend tests.
-- `backend/migrations/`: Alembic migrations.
-- `backend/docker/`: Dockerfiles and entrypoint scripts.
-- `client/src/types/`: frontend-only shared types.
-- `deploy/`: production nginx + monitoring configs.
-- `docs/`: planning and project notes.
+- `client/` frontend
+- `backend/` backend API + migrations + tests
+- `deploy/` nginx and monitoring configs
+- `docker-compose.prod.yml` full production-like stack
 
-## Local Run Commands
+## 1) Clone
 
-### Frontend
+```bash
+git clone <your-repo-url>
+cd CodeMaster
+```
+
+## 2) Local Development (Backend + Frontend)
+
+### Backend
+
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Create env files from examples:
+
+```bash
+copy envs\example.env envs\backend.env
+copy envs\pg_example.env envs\pg.env
+```
+
+Run API:
+
+```bash
+uvicorn src.main:app --reload
+```
+
+### Frontend (new terminal)
 
 ```bash
 cd client
@@ -24,32 +53,30 @@ npm install
 npm run dev
 ```
 
-### Backend
+Frontend: `http://localhost:5173`  
+Backend: `http://localhost:8000`
 
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn src.main:app --reload
-```
-
-## One-Command Production Stack
+## 3) One-Command Stack (Docker)
 
 From project root:
 
+### Linux/macOS
 ```bash
 make prod-up
 ```
 
-This starts:
-- frontend (built and served by nginx)
-- backend (with migrations on startup)
-- postgres
-- prometheus
-- grafana
+### Windows (CMD/PowerShell, no make required)
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
 
-Useful endpoints after startup:
-- app: `http://localhost`
-- backend health: `http://localhost/healthz`
-- prometheus: `http://localhost:9090`
-- grafana: `http://localhost:3001` (admin/admin)
+This starts nginx + client build, backend, postgres, prometheus, and grafana.  
+Backend migrations run automatically on container startup.
 
+## Useful Endpoints
+
+- App: `http://localhost`
+- Backend health: `http://localhost/healthz`
+- Backend metrics: `http://localhost/metrics`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3001` (default `admin/admin`)

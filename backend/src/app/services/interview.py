@@ -1,5 +1,7 @@
+import math
 import secrets
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -12,6 +14,8 @@ from app.models import (
     InterviewSubmission,
     Problem,
 )
+from app.services.mail import send_email
+from config import settings
 
 
 def generate_candidate_token() -> str:
@@ -28,6 +32,12 @@ def _ensure_aware(value: datetime | None) -> datetime | None:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
+
+
+def build_candidate_link(token: str) -> str:
+    base = settings.INTERVIEW_PUBLIC_BASE_URL.rstrip("/")
+    query = urlencode({"token": token})
+    return f"{base}/challenge?{query}"
 
 
 def load_interview_or_404(db: Session, interview_id: int) -> Interview:
@@ -221,3 +231,176 @@ def create_activity_log(db: Session, candidate: InterviewCandidate, event_type: 
     db.commit()
     db.refresh(log)
     return log
+
+
+def _invite_text_body(*, interview_title: str, interview_link: str) -> str:
+    return (
+        "Hello,\n\n"
+        f"You have been invited to interview: {interview_title}\n\n"
+        "Use the link below to access your interview:\n"
+        f"{interview_link}\n\n"
+        "Please open the link before it expires.\n\n"
+        "Good luck,\nCodeMaster Team\n"
+    )
+
+
+def _invite_html_body(*, interview_title: str, interview_link: str) -> str:
+    return f"""\
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Interview Invitation</title>
+    <style>
+      body {{
+        margin: 0;
+        background: #f1f5f9;
+        font-family: "Segoe UI", Arial, sans-serif;
+        color: #0f172a;
+      }}
+      .wrapper {{
+        width: 100%;
+        padding: 24px 12px;
+      }}
+      .card {{
+        max-width: 620px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      }}
+      .header {{
+        background: linear-gradient(135deg, #0f172a, #1d4ed8);
+        color: #ffffff;
+        padding: 28px 24px;
+      }}
+      .header h1 {{
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: 0.2px;
+      }}
+      .content {{
+        padding: 24px;
+        font-size: 15px;
+        line-height: 1.6;
+      }}
+      .title {{
+        margin: 8px 0 16px 0;
+        font-size: 18px;
+        font-weight: 700;
+      }}
+      .cta {{
+        margin: 24px 0;
+      }}
+      .btn {{
+        display: inline-block;
+        text-decoration: none;
+        background: #2563eb;
+        color: #ffffff !important;
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-weight: 600;
+      }}
+      .hint {{
+        margin-top: 14px;
+        padding: 12px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        font-size: 13px;
+        color: #334155;
+        word-break: break-all;
+      }}
+      .footer {{
+        padding: 16px 24px 24px 24px;
+        font-size: 12px;
+        color: #64748b;
+      }}
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="header">
+          <h1>CodeMaster Interview Invitation</h1>
+        </div>
+        <div class="content">
+          <p>Hello,</p>
+          <p>You have been invited to complete an interview challenge.</p>
+          <p class="title">{interview_title}</p>
+          <p>Please use the secure link below to start your interview.</p>
+          <div class="cta">
+            <a class="btn" href="{interview_link}" target="_blank" rel="noopener noreferrer">Start Interview</a>
+          </div>
+          <div class="hint">
+            If the button does not work, copy and paste this URL in your browser:<br />
+            {interview_link}
+          </div>
+        </div>
+        <div class="footer">
+          This is an automated message from CodeMaster. Please do not reply to this email.
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+"""
+
+
+def _resend_retry_after_seconds(candidate: InterviewCandidate) -> int:
+    if candidate.invite_status != "sent":
+        return 0
+    sent_at = _ensure_aware(candidate.invite_sent_at)
+    if sent_at is None:
+        return 0
+    cooldown = timedelta(minutes=settings.INTERVIEW_INVITE_RESEND_COOLDOWN_MINUTES)
+    next_allowed_at = sent_at + cooldown
+    remaining = (next_allowed_at - _utcnow()).total_seconds()
+    return max(0, int(math.ceil(remaining)))
+
+
+def send_candidate_invite(
+    db: Session,
+    candidate: InterviewCandidate,
+    *,
+    enforce_resend_cooldown: bool = False,
+) -> dict:
+    if enforce_resend_cooldown:
+        retry_after = _resend_retry_after_seconds(candidate)
+        if retry_after > 0:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Invite already sent recently. Try again in {retry_after} seconds.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    candidate.invite_attempts = (candidate.invite_attempts or 0) + 1
+    interview_link = build_candidate_link(candidate.token)
+    recruiter = getattr(candidate.interview, "recruiter", None)
+    owner_email = (getattr(recruiter, "email", "") or "").strip() or settings.MAIL_FROM
+    owner_name = (getattr(recruiter, "name", "") or "").strip() or settings.MAIL_FROM_NAME
+    try:
+        send_email(
+            to_email=candidate.email,
+            subject=f"Interview Invitation: {candidate.interview.title}",
+            text_body=_invite_text_body(interview_title=candidate.interview.title, interview_link=interview_link),
+            html_body=_invite_html_body(interview_title=candidate.interview.title, interview_link=interview_link),
+            from_email=owner_email,
+            from_name=owner_name,
+        )
+        candidate.invite_status = "sent"
+        candidate.invite_error = None
+        candidate.invite_sent_at = _utcnow()
+    except Exception as exc:
+        candidate.invite_status = "failed"
+        candidate.invite_error = str(exc)
+    db.flush()
+    return {
+        "candidate_id": candidate.id,
+        "email": candidate.email,
+        "status": candidate.invite_status,
+        "error": candidate.invite_error,
+    }

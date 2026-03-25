@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { interviewsAPI, problemsAPI } from "@/services/api";
@@ -31,8 +31,11 @@ type InterviewFormState = {
 };
 
 const InterviewCreatePage = () => {
+  const params = useParams<{ id?: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const interviewId = Number(params.id);
+  const isEditMode = Number.isFinite(interviewId);
   const [selectedProblemIds, setSelectedProblemIds] = useState<number[]>([]);
   const [form, setForm] = useState<InterviewFormState>({
     title: "",
@@ -47,31 +50,94 @@ const InterviewCreatePage = () => {
 
   const { data: problemsPage, isLoading } = useQuery<{ items: ProblemOption[]; total: number; page: number; page_size: number }>({
     queryKey: ["problems"],
-    queryFn: () => problemsAPI.getAllProblems({ page_size: 200 }),
+    queryFn: async () => {
+      const pageSize = 100;
+      const first = await problemsAPI.getAllProblems({ page: 1, page_size: pageSize });
+      if (first.total <= first.items.length) {
+        return first;
+      }
+
+      const pages = Math.ceil(first.total / pageSize);
+      const rest = await Promise.all(
+        Array.from({ length: pages - 1 }, (_, index) =>
+          problemsAPI.getAllProblems({ page: index + 2, page_size: pageSize }),
+        ),
+      );
+
+      return {
+        items: [first, ...rest].flatMap((page) => page.items),
+        total: first.total,
+        page: 1,
+        page_size: pageSize,
+      };
+    },
   });
 
-  const createMutation = useMutation({
+  const { data: existingInterview, isLoading: isLoadingInterview } = useQuery({
+    queryKey: ["interview", interviewId],
+    queryFn: () => interviewsAPI.getById(interviewId),
+    enabled: isEditMode,
+  });
+
+  useEffect(() => {
+    if (!existingInterview) return;
+    setForm({
+      title: existingInterview.title,
+      description: existingInterview.description ?? "",
+      difficulty: existingInterview.difficulty ?? "Medium",
+      duration_minutes: existingInterview.duration_minutes,
+      availability_days: existingInterview.availability_days,
+      status: existingInterview.status,
+      antiCheat: Boolean((existingInterview.settings as Record<string, unknown>)?.anti_cheat ?? true),
+      navigation: String((existingInterview.settings as Record<string, unknown>)?.navigation ?? "restricted"),
+    });
+    setSelectedProblemIds(
+      [...existingInterview.problems]
+        .sort((a, b) => a.order - b.order)
+        .map((problem) => problem.id),
+    );
+  }, [existingInterview]);
+
+  const saveMutation = useMutation({
     mutationFn: () =>
-      interviewsAPI.create({
-        title: form.title,
-        description: form.description,
-        difficulty: form.difficulty,
-        duration_minutes: Number(form.duration_minutes),
-        availability_days: Number(form.availability_days),
-        status: form.status,
-        settings: {
-          anti_cheat: form.antiCheat,
-          navigation: form.navigation,
-        },
-        problems: selectedProblemIds.map((problemId, index) => ({ problem_id: problemId, order: index })),
-      }),
+      isEditMode
+        ? interviewsAPI.update(interviewId, {
+            title: form.title,
+            description: form.description,
+            difficulty: form.difficulty,
+            duration_minutes: Number(form.duration_minutes),
+            availability_days: Number(form.availability_days),
+            status: form.status,
+            settings: {
+              anti_cheat: form.antiCheat,
+              navigation: form.navigation,
+            },
+            problems: selectedProblemIds.map((problemId, index) => ({ problem_id: problemId, order: index })),
+          })
+        : interviewsAPI.create({
+            title: form.title,
+            description: form.description,
+            difficulty: form.difficulty,
+            duration_minutes: Number(form.duration_minutes),
+            availability_days: Number(form.availability_days),
+            status: form.status,
+            settings: {
+              anti_cheat: form.antiCheat,
+              navigation: form.navigation,
+            },
+            problems: selectedProblemIds.map((problemId, index) => ({ problem_id: problemId, order: index })),
+          }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["interviews"] });
-      toast({ title: "Interview created", description: "Now add candidates and monitor their activity." });
+      queryClient.invalidateQueries({ queryKey: ["interview", interviewId] });
+      toast({
+        title: isEditMode ? "Interview updated" : "Interview created",
+        description: isEditMode ? "Interview changes saved successfully." : "Now add candidates and monitor their activity.",
+      });
       setLocation(`/interviews/${created.id}`);
     },
     onError: (error: Error) => {
-      toast({ title: "Create failed", description: error.message, variant: "destructive" });
+      toast({ title: isEditMode ? "Update failed" : "Create failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -107,15 +173,15 @@ const InterviewCreatePage = () => {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to interviews
           </Link>
-          <h1 className="text-3xl font-semibold tracking-tight">Create Interview</h1>
-          <p className="text-sm text-muted-foreground">Set the interview metadata first, then select the problems candidates should solve.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">{isEditMode ? "Edit Interview" : "Create Interview"}</h1>
+          <p className="text-sm text-muted-foreground">Set interview metadata and select the exact problem order candidates should solve.</p>
         </div>
         <Button
-          onClick={() => createMutation.mutate()}
-          disabled={!form.title.trim() || selectedProblemIds.length === 0 || createMutation.isPending}
+          onClick={() => saveMutation.mutate()}
+          disabled={!form.title.trim() || selectedProblemIds.length === 0 || saveMutation.isPending || isLoadingInterview}
         >
-          {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          Save Interview
+          {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          {isEditMode ? "Update Interview" : "Save Interview"}
         </Button>
       </div>
 

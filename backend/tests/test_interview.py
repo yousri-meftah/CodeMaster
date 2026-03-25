@@ -97,7 +97,7 @@ def test_candidate_session_save_submit_and_logs(client, db_session):
         headers=recruiter_headers,
     )
     assert candidates_resp.status_code == 200
-    token = candidates_resp.json()[0]["token"]
+    token = candidates_resp.json()["candidates"][0]["token"]
 
     session_resp = client.get(f"/interview/session?token={token}")
     assert session_resp.status_code == 200
@@ -160,7 +160,7 @@ def test_recruiter_can_update_candidate_status(client, db_session):
         json={"emails": ["status@example.com"]},
         headers=recruiter_headers,
     )
-    candidate_id = candidates_resp.json()[0]["id"]
+    candidate_id = candidates_resp.json()["candidates"][0]["id"]
 
     resp = client.patch(
         f"/interviews/{interview_id}/candidates/{candidate_id}/status",
@@ -183,8 +183,8 @@ def test_candidate_review_endpoints_are_scoped_to_one_candidate(client, db_sessi
         json={"emails": ["candidate-a@example.com", "candidate-b@example.com"]},
         headers=recruiter_headers,
     )
-    candidate_a = candidates_resp.json()[0]
-    candidate_b = candidates_resp.json()[1]
+    candidate_a = candidates_resp.json()["candidates"][0]
+    candidate_b = candidates_resp.json()["candidates"][1]
 
     client.post(f"/interview/start?token={candidate_a['token']}")
     client.post(
@@ -238,7 +238,7 @@ def test_expired_candidate_token_returns_gone(client, db_session):
         json={"emails": ["expired@example.com"]},
         headers=recruiter_headers,
     )
-    token = candidates_resp.json()[0]["token"]
+    token = candidates_resp.json()["candidates"][0]["token"]
     client.post(f"/interview/start?token={token}")
 
     candidate = db_session.query(InterviewCandidate).filter(InterviewCandidate.token == token).first()
@@ -265,7 +265,7 @@ def test_candidate_token_cannot_access_recruiter_routes(client, db_session):
         json={"emails": ["security@example.com"]},
         headers=recruiter_headers,
     )
-    token = candidates_resp.json()[0]["token"]
+    token = candidates_resp.json()["candidates"][0]["token"]
 
     resp = client.get(
         f"/interviews/{interview_id}/candidates",

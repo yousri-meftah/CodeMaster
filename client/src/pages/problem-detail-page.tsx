@@ -128,9 +128,6 @@ const ProblemDetailPage = () => {
       setActiveCaseIndex(0); // Reset to first test case
       setShowCelebration(false);
       setShowSuccessModal(false);
-      if (user) {
-        refetchSubmissions();
-      }
       toast({
         title: result.verdict === "AC" ? "All tests passed!" : "Run completed",
         description: `Verdict: ${result.verdict} (${result.passed}/${result.total} passed)`,
@@ -187,6 +184,7 @@ const ProblemDetailPage = () => {
         setShowCelebration(true);
         setShowSuccessModal(true);
       }
+      await refetchSubmissions();
       toast({
         title: result.verdict === "AC" ? "Accepted! 🎉" : "Submission completed",
         description: `Verdict: ${result.verdict} (${result.passed}/${result.total} passed)`,

@@ -1,19 +1,44 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from api import auth ,user , Tag , SavedSolution,Roadmap , Problem , Comment, Progress, Article, Submission, Interviews, Interview 
+from app.services.admin_bootstrap import bootstrap_admin
+from database import SessionLocal
 
 try:
     from prometheus_fastapi_instrumentator import Instrumentator
 except ImportError:  # optional in local environments without network install
     Instrumentator = None
 
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db = SessionLocal()
+    try:
+        status = bootstrap_admin(db)
+        logger.info("Admin bootstrap %s", status)
+    except Exception as exc:
+        logger.error("Admin bootstrap failed: %s", exc)
+        raise
+    finally:
+        db.close()
+    yield
+
+
 app = FastAPI(
     title='PointOfSell',
     description='FastApi PointOfSell Project',
     version='1.0.0',
-    docs_url='/',
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+    lifespan=lifespan,
 )
 origins = [
     "http://localhost:5173",

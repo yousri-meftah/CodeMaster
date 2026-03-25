@@ -57,6 +57,7 @@ function Router() {
           <ProtectedRoute path="/profile" component={ProfilePage} />
           <ProtectedRoute path="/interviews" component={InterviewsPage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/new" component={InterviewCreatePage} requireRole="recruiter" />
+          <ProtectedRoute path="/interviews/:id/edit" component={InterviewCreatePage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/:id/candidates/:candidateId" component={InterviewCandidateReviewPage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/:id" component={InterviewDetailPage} requireRole="recruiter" />
           <ProtectedRoute path="/admin" component={AdminPage} requireRole="admin" />

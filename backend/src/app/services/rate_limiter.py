@@ -69,6 +69,16 @@ def reset_rate_limiter() -> None:
 
 
 def _extract_identity(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        first_ip = forwarded_for.split(",")[0].strip()
+        if first_ip:
+            return f"ip:{first_ip}"
+
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        return f"ip:{real_ip}"
+
     auth_header = request.headers.get("authorization", "")
     if auth_header.lower().startswith("bearer "):
         token = auth_header.split(" ", 1)[1].strip()
