@@ -33,6 +33,7 @@ function Router() {
   const interviewToken = sessionStorage.getItem("interview_active_token");
   const isChallengePath = location.startsWith("/challenge");
   const isProblemWorkspace = /^\/problems\/[^/]+$/.test(location);
+  const isAuthPath = location === "/auth";
 
   if (interviewToken && !isChallengePath) {
     return <Redirect to={`/challenge/session?token=${encodeURIComponent(interviewToken)}`} />;
@@ -41,7 +42,7 @@ function Router() {
   return (
     <div className="flex flex-col min-h-screen">
       {!isChallengePath && <Header />}
-      <main className={isChallengePath ? "flex-1" : isProblemWorkspace ? "flex-1 overflow-hidden" : "flex-1 container mx-auto px-4 py-6"}>
+      <main className={isChallengePath ? "flex-1" : isProblemWorkspace ? "flex-1 overflow-hidden" : isAuthPath ? "flex-1 overflow-hidden p-0" : "flex-1 container mx-auto px-4 py-6"}>
         <Switch>
           <Route path="/" component={HomePage} />
           <Route path="/problems" component={ProblemsPage} />
@@ -64,7 +65,7 @@ function Router() {
           <Route component={NotFound} />
         </Switch>
       </main>
-      {!isChallengePath && !isProblemWorkspace && <Footer />}
+      {!isChallengePath && !isProblemWorkspace && !isAuthPath && <Footer />}
     </div>
   );
 }
