@@ -1,25 +1,30 @@
 from pydantic import BaseModel, ConfigDict, EmailStr
-from typing import Optional, List
-from datetime import datetime
 
-class UserBase(BaseModel):
-    name: str | None
-    email: EmailStr| None
-    phone : Optional[str] = None
 
-    model_config = ConfigDict(extra="forbid")
-
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    name: str
+    email: EmailStr
+    phone: str | None = None
     password: str
     role: str = "user"
 
-class UserUpdate(UserBase):
-    password: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
 
-class UserResponse(UserBase):
-    id: int| None
-    #created_at: datetime
 
+class UserUpdate(BaseModel):
+    name: str | None = None
+    email: EmailStr | None = None
+    phone: str | None = None
+    password: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class UserResponse(BaseModel):
+    id: int | None
+    name: str | None = None
+    email: EmailStr | None = None
+    phone: str | None = None
 
 
 class Users(BaseModel):

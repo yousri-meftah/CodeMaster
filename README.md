@@ -78,5 +78,5 @@ Backend migrations run automatically on container startup.
 - App: `http://localhost`
 - Backend health: `http://localhost/healthz`
 - Backend metrics: `http://localhost/metrics`
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001` (default `admin/admin`)
+- Prometheus: `http://127.0.0.1:9090`
+- Grafana: `http://127.0.0.1:3001` (default `admin/admin`)

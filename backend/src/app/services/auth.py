@@ -8,7 +8,7 @@ from config import settings
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SPECIAL_CHARACTERS = ["@", "#", "$", "%", "=", ":", "?", ".", "/", "|", "~", ">"]
+SPECIAL_CHARACTERS = ["!", "@", "#", "$", "%", "=", ":", "?", ".", "/", "|", "~", ">"]
 
 
 def hash_password(password: str):
@@ -61,8 +61,7 @@ def decode_access_token(token: str):
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.JWTError as e:
-        print(e)
+    except jwt.JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",

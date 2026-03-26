@@ -5,18 +5,37 @@ from database import get_db
 from redis_db import get_redis
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, Users
 from app.controllers.user import register_user, get_user, update_user, delete_user, get_users
-from app.controllers.auth import get_current_user
+from app.controllers.auth import get_current_user, require_admin, require_user
 from sqlalchemy import func
-from app.models import Problem, Submission
+from app.models import Problem, Submission, User
 from app.exceptions.base import NotFoundException
 
 router = APIRouter()
 
+
+def _ensure_self_or_admin(current_user, target_user_id: int):
+    if getattr(current_user, "is_admin", False) or getattr(current_user, "role", "user") == "admin":
+        return
+    if current_user.id != target_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden",
+        )
+
 @router.post("/", response_model=UserResponse)
-def create_user_api(user_data: UserCreate, db: Session = Depends(get_db)):
+def create_user_api(
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
     try:
-        return register_user(user_data, db)
-    except Exception as e:
+        register_user(user_data, db)
+        db.commit()
+        created = db.query(User).filter_by(email=user_data.email).first()
+        return created
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
@@ -105,63 +124,87 @@ def get_user_activity(db: Session = Depends(get_db), user=Depends(get_current_us
         )
 
 @router.get("/{user_id}", response_model=UserResponse)
-async def get_user_api(user_id: int, db: Session = Depends(get_db)):
+async def get_user_api(user_id: int, db: Session = Depends(get_db), current_user=Depends(require_user)):
     try:
+        _ensure_self_or_admin(current_user, user_id)
         return await get_user(user_id, db)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
 
 @router.get("/", response_model=Users)
-async def get_users_api(db: Session = Depends(get_db)):
+async def get_users_api(db: Session = Depends(get_db), _=Depends(require_admin)):
     try:
         res = []
         result = get_users(db)
 
         for val in result:
-            res.append(UserResponse(**val.__dict__))
+            res.append(
+                UserResponse(
+                    id=val.id,
+                    name=val.name,
+                    email=val.email,
+                    phone=val.phone,
+                )
+            )
 
         final_result = Users(data = res)
         return final_result
-    except Exception as e:
-        print(e)
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
 
 @router.put("/{user_id}", response_model=UserResponse)
-def update_user_api(user_id: int, user_data: UserUpdate, db: Session = Depends(get_db)):
+async def update_user_api(
+    user_id: int,
+    user_data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_user),
+):
     try:
-        return update_user(user_id, user_data, db)
+        _ensure_self_or_admin(current_user, user_id)
+        return await update_user(user_id, user_data, db)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user_api(user_id: int, db: Session = Depends(get_db)):
+async def delete_user_api(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_user),
+):
     try:
-        delete_user(user_id, db)
+        _ensure_self_or_admin(current_user, user_id)
+        await delete_user(user_id, db)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",

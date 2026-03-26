@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from ..models import User
-from ..services.auth import hash_password , verify_password, create_access_token
+from ..services.auth import hash_password , verify_password, create_access_token, is_password_strong_enough
 from ..schemas.user import UserCreate,UserResponse
 from ..schemas.auth import UserLogin
 from fastapi.security import OAuth2PasswordRequestForm
@@ -9,10 +9,17 @@ from app.exceptions.user import UserEmailAlreadyExistsException
 from app.exceptions.base import NotFoundException
 from app.schemas.user import UserUpdate
 from app.services.auth import hash_password
+from fastapi import HTTPException, status
 
 def register_user(user: UserCreate, db: Session):
     if db.query(User).filter(User.email == user.email).first():
         raise UserEmailAlreadyExistsException
+
+    if not is_password_strong_enough(user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters and include upper, lower, digit, and special character",
+        )
 
     role = (user.role or "user").strip().lower()
     if role not in {"user", "recruiter"}:
@@ -63,6 +70,11 @@ async def update_user(user_id: int, user_data: UserUpdate, db: Session):
         raise NotFoundException(detail="User not found")
 
     if user_data.password:
+        if not is_password_strong_enough(user_data.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters and include upper, lower, digit, and special character",
+            )
         user_data.password = hash_password(user_data.password)
 
     for key, value in user_data.dict(exclude_unset=True).items():

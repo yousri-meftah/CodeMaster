@@ -32,8 +32,11 @@ def run_submission(
         )
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Execution service unavailable",
+        )
 
 
 @router.post(
@@ -58,8 +61,11 @@ def submit_submission(
         )
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Execution service unavailable",
+        )
 
 
 @router.get("/problem/{problem_id}", response_model=list[SubmissionListItem])

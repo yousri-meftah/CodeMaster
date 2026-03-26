@@ -17,6 +17,6 @@ if [ "${UVICORN_RELOAD}" = "1" ]; then
   exec uvicorn src.main:app --host "$HOST" --port "$PORT" --reload
 fi
 
-WORKERS="${UVICORN_WORKERS:-2}"
+WORKERS="${UVICORN_WORKERS:-1}"
 echo 'Running Server'
 exec uvicorn src.main:app --host "$HOST" --port "$PORT" --workers "$WORKERS"
