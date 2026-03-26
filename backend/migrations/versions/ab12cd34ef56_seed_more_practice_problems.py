@@ -1,7 +1,7 @@
 """Seed more practice problems
 
 Revision ID: ab12cd34ef56
-Revises: f9a0b1c2d3e4
+Revises: a7c8d9e0f1a2
 Create Date: 2026-03-26 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision: str = "ab12cd34ef56"
-down_revision: Union[str, None] = "f9a0b1c2d3e4"
+down_revision: Union[str, None] = "a7c8d9e0f1a2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
