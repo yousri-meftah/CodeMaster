@@ -1,3 +1,5 @@
+#!/bin/sh
+
 set -e
 
 if [ "${RUNNING_IN_DOCKER}" = "1" ]; then

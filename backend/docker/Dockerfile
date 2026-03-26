@@ -5,7 +5,8 @@ WORKDIR /backend
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN addgroup -S app && adduser -S -G app app \
+RUN apk add --no-cache dos2unix \
+    && addgroup -S app && adduser -S -G app app \
     && pip install --upgrade pip
 
 COPY requirements.txt /backend/requirements.txt
@@ -14,7 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /backend
 
-RUN chown -R app:app /backend
+RUN dos2unix /backend/docker/entrypoint.sh \
+    && chmod +x /backend/docker/entrypoint.sh \
+    && chown -R app:app /backend
 
 ENV PYTHONPATH=/backend
 
