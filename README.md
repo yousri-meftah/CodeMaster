@@ -1,50 +1,57 @@
 # CodeMaster
 
-CodeMaster is a full-stack coding platform with:
-- React + Vite frontend
-- FastAPI backend
-- Postgres
-- Nginx reverse proxy
-- Prometheus + Grafana monitoring
+CodeMaster is a full-stack coding platform for technical practice and interview workflows. It combines a browser-based coding experience, problem management, code execution, and recruiter-led interview sessions in one system.
 
-## Project Structure
+The project is built with a React frontend, a FastAPI backend, PostgreSQL for persistence, and an Nginx production layer. It also includes optional monitoring with Prometheus and Grafana, plus a Docker-based deployment flow for local and server environments.
 
-- `client/` frontend
-- `backend/` backend API, migrations, tests
-- `deploy/` nginx and monitoring configs
-- `docker-compose.prod.yml` local image build stack
-- `docker-compose.deploy.yml` registry-based deployment stack
+## Highlights
 
-## Deployment Diagram
+- Practice problems with descriptions, constraints, tags, and starter code
+- In-browser code editing and submission flows
+- Multi-language execution through a Piston-compatible runner
+- Authentication, user profiles, and admin/recruiter access controls
+- Recruiter interview creation, candidate invites, and interview session tracking
+- Production-ready Docker setup with reverse proxy and monitoring
+
+## Tech Stack
+
+- Frontend: React, Vite, TypeScript
+- Backend: FastAPI, SQLAlchemy, Alembic
+- Database: PostgreSQL
+- Proxy: Nginx
+- Monitoring: Prometheus, Grafana
+- Containerization: Docker Compose
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    Dev["Developer Pushes To GitHub"] --> Actions["GitHub Actions"]
-    Actions --> BuildBackend["Build backend image"]
-    Actions --> BuildWeb["Build web image"]
-    BuildBackend --> HubBackend["Docker Hub: yousri1/codemaster-backend"]
-    BuildWeb --> HubWeb["Docker Hub: yousri1/codemaster-web"]
-    HubBackend --> Server["Homelab Server"]
-    HubWeb --> Server
-    Server --> Compose["docker compose -f docker-compose.deploy.yml pull && up -d"]
-    Compose --> Web["codemaster-web"]
-    Compose --> Backend["codemaster-backend"]
-    Compose --> Postgres["codemaster-postgres"]
-    Web --> Backend
-    Backend --> Postgres
-    Browser["Browser / Cloudflare Tunnel"] --> Web
+    Browser["Browser"] --> Web["Nginx + Frontend"]
+    Web --> API["FastAPI Backend"]
+    API --> DB["PostgreSQL"]
+    API --> Runner["Code Execution Service"]
 ```
 
-## Local Development
+## Repository Layout
 
-### Clone
+- `client/` frontend application
+- `backend/` API, business logic, migrations, tests
+- `deploy/` production Nginx and monitoring configuration
+- `docker-compose.prod.yml` local production-like build stack
+- `docker-compose.deploy.yml` image-based deployment stack
+
+## Getting Started
+
+### Local Development
+
+Clone the repository:
 
 ```bash
 git clone <your-repo-url>
 cd CodeMaster
 ```
 
-### Backend
+Backend setup:
 
 ```bash
 cd backend
@@ -53,20 +60,20 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create env files from examples:
+Create environment files from the provided examples:
 
 ```bash
 copy envs\example.env envs\backend.env
 copy envs\pg_example.env envs\pg.env
 ```
 
-Run API:
+Run the API:
 
 ```bash
 uvicorn src.main:app --reload
 ```
 
-### Frontend
+Frontend setup:
 
 ```bash
 cd client
@@ -74,14 +81,16 @@ npm install
 npm run dev
 ```
 
-Frontend: `http://localhost:5173`  
-Backend: `http://localhost:8000`
+Default local URLs:
 
-## Docker Flows
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000`
 
-### 1. Local Build-Based Stack
+## Docker
 
-This builds images from source on the machine where you run Compose.
+### Local Production-Like Stack
+
+Build and run the stack locally from source:
 
 Linux/macOS:
 
@@ -95,36 +104,44 @@ Windows:
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-### 2. Registry-Based Deployment
+This starts the frontend, backend, PostgreSQL, and optional monitoring services. Database migrations run on container startup.
 
-This is the standard production pattern: build once, push images to Docker Hub, then pull them on the server.
+### Image-Based Deployment
 
-The repo is set up to publish these images:
+The repository also supports a registry-driven deployment flow where application images are built once and pulled by the target server.
+
+Published images:
+
 - `yousri1/codemaster-backend`
 - `yousri1/codemaster-web`
 
-GitHub Actions workflow:
+Deployment workflow:
+
+```mermaid
+flowchart LR
+    Dev["Push To GitHub"] --> CI["GitHub Actions"]
+    CI --> Hub["Docker Hub"]
+    Hub --> Server["Deployment Server"]
+    Server --> Compose["docker compose pull && up -d"]
+```
+
+The Docker publish workflow lives in:
+
 - `.github/workflows/docker-publish.yml`
 
-Required GitHub repository secrets:
+Required GitHub Actions secrets:
+
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN`
 
-Once those secrets are set, every push to `main` will build and push:
-- `latest`
-- branch/tag refs
-- commit SHA tags
-
-### Server Deploy
-
-On the server:
+Deploy from prebuilt images:
 
 ```bash
 docker compose -f docker-compose.deploy.yml pull
 docker compose -f docker-compose.deploy.yml up -d
 ```
 
-To pin a specific image tag:
+To deploy a pinned image tag:
 
 ```bash
 set CODEMASTER_IMAGE_TAG=sha-xxxxxxxx
@@ -132,22 +149,23 @@ docker compose -f docker-compose.deploy.yml pull
 docker compose -f docker-compose.deploy.yml up -d
 ```
 
-The deploy compose file defaults to:
-- `yousri1/codemaster-backend:latest`
-- `yousri1/codemaster-web:latest`
+## Monitoring
 
-You can also override the image names:
+Optional monitoring is included with:
 
-```bash
-set CODEMASTER_BACKEND_IMAGE=yousri1/codemaster-backend
-set CODEMASTER_WEB_IMAGE=yousri1/codemaster-web
-set CODEMASTER_IMAGE_TAG=latest
-```
+- Prometheus
+- Grafana
 
-## Useful Endpoints
+Default endpoints when enabled:
 
-- App: `http://localhost`
-- Backend health: `http://localhost/healthz`
-- Backend metrics: `http://localhost/metrics`
+- Application: `http://localhost`
+- Health check: `http://localhost/healthz`
+- Metrics: `http://localhost/metrics`
 - Prometheus: `http://127.0.0.1:9090`
 - Grafana: `http://127.0.0.1:3001`
+
+## Notes
+
+- Environment-specific values such as database credentials, mail settings, execution service URLs, and compiler paths should be supplied through env files.
+- For container deployments, keep server-specific secrets and infrastructure settings outside the repository.
+- If you are deploying with prebuilt images, make sure your runtime env files match your server topology.

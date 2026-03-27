@@ -9,7 +9,7 @@ if [ "${RUNNING_IN_DOCKER}" = "1" ]; then
 fi
 
 echo 'Running Migrations'
-alembic upgrade heads
+alembic upgrade head
 
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
