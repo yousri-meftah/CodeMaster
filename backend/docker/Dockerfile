@@ -5,7 +5,7 @@ WORKDIR /backend
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN apk add --no-cache dos2unix \
+RUN apk add --no-cache dos2unix openjdk21-jre-headless \
     && addgroup -S app && adduser -S -G app app \
     && pip install --upgrade pip
 
