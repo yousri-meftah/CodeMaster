@@ -69,7 +69,6 @@ def test_user_update_and_delete_require_self_or_admin(client, db_session):
 
 
 def test_register_rejects_weak_password(client):
-    weak = _register_user(client, email="weak@example.com", password="weakpass")
+    weak = _register_user(client, email="weak@example.com", password="short")
     assert weak.status_code == 400
     assert "Password must be" in weak.json()["detail"]
-

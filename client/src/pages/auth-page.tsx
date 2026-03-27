@@ -9,16 +9,21 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Code2, Github, Loader2, Lock, Mail, Trophy, Workflow, Zap } from "lucide-react";
 
+const passwordMessage = "Password must be at least 8 characters.";
+const passwordSchema = z.string().min(8, { message: passwordMessage });
+
 const loginSchema = z.object({
-  username: z.string().min(3, { message: "Username must be at least 3 characters." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  username: z.string().email({ message: "Enter a valid email address." }),
+  password: z.string().min(1, { message: "Password is required." }),
 });
 
-const registerSchema = loginSchema
-  .extend({
+const registerSchema = z
+  .object({
+    email: z.string().email({ message: "Enter a valid email address." }),
+    password: passwordSchema,
     name: z.string().optional(),
     role: z.enum(["user", "recruiter"]).default("user"),
-    confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
+    confirmPassword: passwordSchema,
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
@@ -40,6 +45,7 @@ const AuthPage = () => {
   const [, setLocation] = useLocation();
   const { user, loginMutation, registerMutation } = useAuth();
   const [mode, setMode] = useState<AuthMode>("login");
+  const [registerEmail, setRegisterEmail] = useState("");
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -49,7 +55,7 @@ const AuthPage = () => {
   const registerForm = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      username: "",
+      email: "",
       name: "",
       role: "user",
       password: "",
@@ -58,8 +64,14 @@ const AuthPage = () => {
   });
 
   useEffect(() => {
-    if (user) setLocation("/");
+    if (user) {
+      setLocation("/");
+    }
   }, [user, setLocation]);
+
+  useEffect(() => {
+    registerForm.setValue("email", registerEmail, { shouldValidate: true, shouldDirty: true });
+  }, [registerEmail, registerForm]);
 
   if (user) return null;
 
@@ -69,7 +81,19 @@ const AuthPage = () => {
 
   const onRegisterSubmit = (values: z.infer<typeof registerSchema>) => {
     const { confirmPassword, ...payload } = values;
-    registerMutation.mutate(payload);
+    registerMutation.mutate(payload, {
+      onSuccess: () => {
+        registerForm.reset({
+          email: "",
+          name: "",
+          role: "user",
+          password: "",
+          confirmPassword: "",
+        });
+        setRegisterEmail("");
+        setMode("login");
+      },
+    });
   };
 
   const busy = loginMutation.isPending || registerMutation.isPending;
@@ -189,7 +213,7 @@ const AuthPage = () => {
                                 {...field}
                                 type="password"
                                 autoComplete="current-password"
-                                placeholder="••••••••"
+                                placeholder="********"
                                 disabled={busy}
                                 className="h-11 bg-background pl-10"
                               />
@@ -211,12 +235,23 @@ const AuthPage = () => {
                   <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="mt-5 space-y-3">
                     <FormField
                       control={registerForm.control}
-                      name="username"
+                      name="email"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Email Address</FormLabel>
                           <FormControl>
-                            <Input {...field} autoComplete="username" placeholder="engineer@codemaster.io" disabled={busy} className="h-10 bg-background" />
+                            <Input
+                              {...field}
+                              value={registerEmail}
+                              onChange={(event) => {
+                                setRegisterEmail(event.target.value);
+                                field.onChange(event);
+                              }}
+                              autoComplete="username"
+                              placeholder="engineer@codemaster.io"
+                              disabled={busy}
+                              className="h-10 bg-background"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -261,7 +296,7 @@ const AuthPage = () => {
                           <FormItem>
                             <FormLabel className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Password</FormLabel>
                             <FormControl>
-                              <Input {...field} type="password" autoComplete="new-password" placeholder="••••••••" disabled={busy} className="h-10 bg-background" />
+                              <Input {...field} type="password" autoComplete="new-password" placeholder="********" disabled={busy} className="h-10 bg-background" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -274,7 +309,7 @@ const AuthPage = () => {
                           <FormItem>
                             <FormLabel className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Confirm</FormLabel>
                             <FormControl>
-                              <Input {...field} type="password" autoComplete="new-password" placeholder="••••••••" disabled={busy} className="h-10 bg-background" />
+                              <Input {...field} type="password" autoComplete="new-password" placeholder="********" disabled={busy} className="h-10 bg-background" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

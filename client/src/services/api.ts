@@ -1,7 +1,7 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import type { Problem, Roadmap } from "@/types/schema";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export interface User {
   id: number;
@@ -21,9 +21,16 @@ export interface LoginData {
   password: string;
 }
 
-export interface RegisterData extends LoginData {
+export interface RegisterData {
+  email: string;
+  password: string;
   name?: string;
   role?: "user" | "recruiter";
+}
+
+export interface RegisterResponse {
+  status: "success" | "error";
+  message: string;
 }
 
 export type TagApi = {
@@ -274,21 +281,20 @@ export const authAPI = {
     return response.data;
   },
 
-  register: async (data: RegisterData): Promise<User> => {
-  const payload = {
-    name: data.name,
-    password: data.password,
-    email: data.username,
-    role: data.role ?? "user",
-  };
+  register: async (data: RegisterData): Promise<RegisterResponse> => {
+    const payload = {
+      name: data.name,
+      password: data.password,
+      email: data.email,
+      role: data.role ?? "user",
+    };
 
-  const response = await api.post('/auth/register', payload);
-
-  if (response.data.token) {
-    localStorage.setItem('token', response.data.token);
-  }
-  return response.data;
-},
+    const response = await api.post("/auth/register", payload);
+    if (response.data.status !== "success") {
+      throw new Error(response.data.message || "Registration failed");
+    }
+    return response.data;
+  },
 
   logout: async (): Promise<void> => {
     localStorage.removeItem('token');
@@ -302,18 +308,18 @@ export const authAPI = {
 
 export const tagsAPI = {
   getAllTags: async (): Promise<TagApi[]> => {
-    const response = await api.get("/tag");
+    const response = await api.get("/tag/");
     return response.data;
   },
   createTag: async (name: string): Promise<TagApi> => {
-    const response = await api.post("/tag", { name });
+    const response = await api.post("/tag/", { name });
     return response.data;
   },
 };
 
 export const problemsAPI = {
   getAllProblems: async (params?: { name?: string; difficulty?: string; page?: number; page_size?: number }): Promise<{ items: Problem[]; total: number; page: number; page_size: number }> => {
-    const response = await api.get<ProblemsPageApi>("/problem", { params });
+    const response = await api.get<ProblemsPageApi>("/problem/", { params });
     return {
       items: response.data.items.map(normalizeProblem),
       total: response.data.total,
@@ -362,7 +368,7 @@ export const problemsAPI = {
       tag_ids
     };
     console.log("payload in createProblem:", payload);
-    const response = await api.post("/problem", payload);
+    const response = await api.post("/problem/", payload);
     return normalizeProblem(response.data);
   },
   updateProblem: async (id: number, data: { title: string; difficulty: string; externalUrl?: string; tagNames?: string[] }) => {
@@ -439,7 +445,7 @@ export const userAPI = {
 
 export const articlesAPI = {
   getAllArticles: async (category?: string) => {
-    const response = await api.get("/articles", {
+    const response = await api.get("/articles/", {
       params: category ? { category } : undefined,
     });
     return response.data;

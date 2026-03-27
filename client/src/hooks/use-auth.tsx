@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect } from "react";
 import { useQuery, useMutation, UseMutationResult, useQueryClient } from "@tanstack/react-query";
-import { authAPI, type User, type LoginData, type RegisterData } from "../services/api";
+import { authAPI, type User, type LoginData, type RegisterData, type RegisterResponse } from "../services/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -12,7 +12,7 @@ type AuthContextType = {
   isRecruiter: boolean;
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<User, Error, RegisterData>;
+  registerMutation: UseMutationResult<RegisterResponse, Error, RegisterData>;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -101,13 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: authAPI.register,
     onSuccess: async () => {
-      const result = await refetchUser();
-      const nextUser = result.data ?? queryClient.getQueryData<User | null>(["user"]);
       toast({
         title: "Registration successful",
-        description: "Welcome to CodePractice!",
+        description: "Account created. Please sign in.",
       });
-      setLocation(getPostAuthPath(nextUser));
+      setLocation("/auth");
     },
     onError: (error: Error) => {
       toast({

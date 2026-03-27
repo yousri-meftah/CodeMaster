@@ -518,7 +518,7 @@ const InterviewSessionPage = () => {
       const payload = JSON.stringify({ token });
       const blob = new Blob([payload], { type: "application/json" });
       navigator.sendBeacon(
-        `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"}/interview/submit`,
+        `${import.meta.env.VITE_API_BASE_URL ?? "/api"}/interview/submit`,
         blob,
       );
     };

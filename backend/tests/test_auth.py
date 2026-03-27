@@ -16,6 +16,12 @@ def _login_user(client, email="test@example.com", password="Test123!"):
     )
 
 
+def test_register_accepts_asterisk_in_password(client):
+    register = _register_user(client, email="asterisk@example.com", password="Test123*")
+    assert register.status_code == 200
+    assert register.json()["status"] == "success"
+
+
 def test_register_login_and_me(client):
     register = _register_user(client)
     assert register.status_code == 200
