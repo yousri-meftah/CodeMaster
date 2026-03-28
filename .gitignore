@@ -7,7 +7,6 @@ INTERVIEW_FEATURE_PLAN.md
 INTERVIEW_FRONTEND_PLAN.md
 output
 tmp
-Demo/
 .env
 .env.*
 backend/envs/backend.env

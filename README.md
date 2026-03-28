@@ -17,6 +17,18 @@ The project is built with a React frontend, a FastAPI backend, PostgreSQL for pe
 - Candidate camera/microphone recording with chunk uploads and recruiter review playback
 - Production-ready Docker setup with reverse proxy and monitoring
 
+## Demo
+
+Application walkthrough video:
+
+Recommended playback speed: `2x`
+
+<video src="./Demo/demo_3-28-2026.mp4" controls width="100%"></video>
+
+Fallback link:
+
+- [Download the demo video](./Demo/demo_3-28-2026.mp4)
+
 ## Tech Stack
 
 - Frontend: React, Vite, TypeScript
