@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.models import User
-from tests.test_auth import _register_user, _login_user
+from tests.test_auth import _auth_headers_from_client, _register_user, _login_user
 from app.services import piston
 
 
@@ -13,9 +13,8 @@ def _auth_headers(client, db_session):
     user.is_admin = True
     db_session.commit()
 
-    login = _login_user(client, email="submit@example.com")
-    token = login.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    _login_user(client, email="submit@example.com")
+    return _auth_headers_from_client(client)
 
 
 def _create_problem(

@@ -29,6 +29,9 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - UVICORN_WORKERS=1
+      - INTERVIEW_MEDIA_UPLOAD_ROOT=/backend/uploads
+    volumes:
+      - uploads-data:/backend/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,3 +102,4 @@ networks:
 volumes:
   postgres-data:
   grafana-data:
+  uploads-data:

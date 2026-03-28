@@ -1,5 +1,5 @@
 from app.models import User
-from tests.test_auth import _register_user, _login_user
+from tests.test_auth import _auth_headers_from_client, _register_user, _login_user
 
 
 def _make_admin(client, db_session, email):
@@ -7,16 +7,14 @@ def _make_admin(client, db_session, email):
     user = db_session.query(User).filter(User.email == email).first()
     user.is_admin = True
     db_session.commit()
-    login = _login_user(client, email=email)
-    token = login.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    _login_user(client, email=email)
+    return _auth_headers_from_client(client)
 
 
 def _make_user(client, email):
     _register_user(client, email=email)
-    login = _login_user(client, email=email)
-    token = login.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    _login_user(client, email=email)
+    return _auth_headers_from_client(client)
 
 
 def test_admin_only_endpoints_require_admin(client, db_session):

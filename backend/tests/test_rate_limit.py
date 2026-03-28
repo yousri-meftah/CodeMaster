@@ -1,6 +1,6 @@
 from app.services.rate_limiter import reset_rate_limiter
 from config import settings
-from tests.test_auth import _login_user, _register_user
+from tests.test_auth import _auth_headers_from_client, _login_user, _register_user
 
 
 def test_auth_login_rate_limit(client):
@@ -72,9 +72,8 @@ def test_submission_submit_rate_limit(client):
     try:
         reset_rate_limiter()
         _register_user(client, email="submit-rate@example.com")
-        login = _login_user(client, email="submit-rate@example.com")
-        token = login.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        _login_user(client, email="submit-rate@example.com")
+        headers = _auth_headers_from_client(client)
         payload = {
             "problem_id": 999999,
             "language": "python",

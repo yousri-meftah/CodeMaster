@@ -1,14 +1,10 @@
 from sqlalchemy.orm import Session
 from ..models import User
-from ..services.auth import hash_password , verify_password, create_access_token, is_password_strong_enough
+from ..services.auth import hash_password, is_password_strong_enough
 from ..schemas.user import UserCreate,UserResponse
-from ..schemas.auth import UserLogin
-from fastapi.security import OAuth2PasswordRequestForm
-from app.exceptions.user import UserNotFoundException
 from app.exceptions.user import UserEmailAlreadyExistsException
 from app.exceptions.base import NotFoundException
 from app.schemas.user import UserUpdate
-from app.services.auth import hash_password
 from fastapi import HTTPException, status
 
 def register_user(user: UserCreate, db: Session):
@@ -35,22 +31,6 @@ def register_user(user: UserCreate, db: Session):
         is_admin=False,
     )
     db.add(db_user)
-
-
-def authenticate_user(user_login: OAuth2PasswordRequestForm, db: Session):
-    user = db.query(User).filter(User.email == user_login.username).first()
-    if not user:
-        raise UserNotFoundException
-
-    if not verify_password(user_login.password, user.password):
-        raise UserNotFoundException
-
-    access_token = create_access_token(data={"sub": user.id})
-
-    return {"access_token": access_token, "token_type": "bearer"}
-
-
-
 async def get_user(user_id: int, db: Session):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -77,7 +57,7 @@ async def update_user(user_id: int, user_data: UserUpdate, db: Session):
             )
         user_data.password = hash_password(user_data.password)
 
-    for key, value in user_data.dict(exclude_unset=True).items():
+    for key, value in user_data.model_dump(exclude_unset=True).items():
         setattr(user, key, value)
 
     db.commit()

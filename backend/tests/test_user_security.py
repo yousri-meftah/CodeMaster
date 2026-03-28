@@ -1,11 +1,10 @@
 from app.models import User
-from tests.test_auth import _login_user, _register_user
+from tests.test_auth import _auth_headers_from_client, _login_user, _register_user
 
 
 def _auth_headers(client, email="user-security@example.com", password="Test123!"):
-    login = _login_user(client, email=email, password=password)
-    token = login.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    _login_user(client, email=email, password=password)
+    return _auth_headers_from_client(client)
 
 
 def _make_admin(client, db_session, email="admin-user-security@example.com"):

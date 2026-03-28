@@ -81,10 +81,10 @@ def compute_expires_at(candidate: InterviewCandidate) -> datetime | None:
 
 
 def compute_available_until(candidate: InterviewCandidate) -> datetime | None:
-    created_at = _ensure_aware(candidate.created_at)
-    if not created_at:
+    availability_anchor = _ensure_aware(candidate.invite_sent_at) or _ensure_aware(candidate.created_at)
+    if not availability_anchor:
         return None
-    return created_at + timedelta(days=candidate.interview.availability_days)
+    return availability_anchor + timedelta(days=candidate.interview.availability_days)
 
 
 def mark_candidate_expired(candidate: InterviewCandidate) -> None:

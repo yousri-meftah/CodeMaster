@@ -41,6 +41,9 @@ const formatDate = (value?: string | Date | null, opts?: Intl.DateTimeFormatOpti
   return date.toLocaleDateString("en-US", opts ?? { month: "short", day: "numeric", year: "numeric" });
 };
 
+const toUtcDayKey = (date: Date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+
 const ProfilePage = () => {
   const { user } = useAuth();
   const { theme } = useTheme();
@@ -137,7 +140,7 @@ const ProfilePage = () => {
   );
 
   const { data: progress, isLoading: progressLoading } = useQuery<UserProgress>({
-    queryKey: ["/progress"],
+    queryKey: ["/progress/"],
     enabled: !!user,
   });
   const { data: solutions, isLoading: solutionsLoading } = useQuery<UserSolution[]>({
@@ -207,12 +210,16 @@ const ProfilePage = () => {
 
   const today = new Date();
   const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const alignedStart = new Date(end);
-  alignedStart.setUTCDate(alignedStart.getUTCDate() - 19 * 7);
+  const rollingStart = new Date(end);
+  rollingStart.setUTCDate(rollingStart.getUTCDate() - 364);
+  const alignedStart = new Date(rollingStart);
   alignedStart.setUTCDate(alignedStart.getUTCDate() - alignedStart.getUTCDay());
+  const alignedEnd = new Date(end);
+  alignedEnd.setUTCDate(alignedEnd.getUTCDate() + (6 - alignedEnd.getUTCDay()));
+  const weekCount = Math.max(1, Math.floor((alignedEnd.getTime() - alignedStart.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1);
 
   const weeks: Date[][] = [];
-  for (let wi = 0; wi < 20; wi += 1) {
+  for (let wi = 0; wi < weekCount; wi += 1) {
     const week: Date[] = [];
     for (let di = 0; di < 7; di += 1) {
       const d = new Date(alignedStart);
@@ -238,6 +245,8 @@ const ProfilePage = () => {
     { label: "Medium", value: diffTotals.medium, color: "#fbbf24", bar: "rgba(251,191,36,0.85)" },
     { label: "Hard", value: diffTotals.hard, color: "#fb7185", bar: "rgba(251,113,133,0.85)" },
   ];
+  const heatCell = 11;
+  const heatGap = 4;
 
   return (
     <div style={{ ...S.mono, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -318,13 +327,13 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 16, alignItems: "start" }}>
         <div style={{ ...S.card }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
             <div>
               <h2 style={{ ...S.heading, fontSize: 16, margin: 0 }}>Contribution Activity</h2>
               <p style={{ ...S.mono, fontSize: 11, color: C.textMuted, marginTop: 3 }}>
-                Last 20 weeks · {totalActivity} tracked actions
+                Last 12 months · {totalActivity} tracked actions
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -349,9 +358,9 @@ const ProfilePage = () => {
               <Loader2 size={20} style={{ color: "#34d399", animation: "spin 1s linear infinite" }} />
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <div style={{ display: "inline-flex", flexDirection: "column", gap: 12, minWidth: 760 }}>
-                <div style={{ display: "grid", gap: 6, paddingLeft: 2, gridTemplateColumns: `repeat(${weeks.length}, 15px)` }}>
+            <div style={{ overflow: "hidden" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "grid", gap: heatGap, paddingLeft: 2, gridTemplateColumns: `repeat(${weeks.length}, ${heatCell}px)` }}>
                   {monthMarkers.map((m) => (
                     <div key={`${m.label}-${m.index}`} style={{ ...S.label, fontSize: 9, gridColumn: `${m.index + 1} / span 1`, whiteSpace: "nowrap" }}>
                       {m.label}
@@ -361,15 +370,15 @@ const ProfilePage = () => {
 
                 <div style={{ display: "flex", gap: 5 }}>
                   {weeks.map((week, wi) => (
-                    <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div key={wi} style={{ display: "flex", flexDirection: "column", gap: heatGap }}>
                       {week.map((date) => {
-                        const key = date.toISOString().slice(0, 10);
+                        const key = toUtcDayKey(date);
                         const count = activityMap.get(key) || 0;
                         return (
                           <div
                             key={key}
                             title={`${key}: ${count}`}
-                            style={{ width: 15, height: 15, borderRadius: 4, cursor: "default", transition: "transform 0.1s", ...heatColor(count) }}
+                            style={{ width: heatCell, height: heatCell, borderRadius: 3, cursor: "default", transition: "transform 0.1s", ...heatColor(count) }}
                           />
                         );
                       })}

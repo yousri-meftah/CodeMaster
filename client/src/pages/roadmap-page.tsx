@@ -108,7 +108,7 @@ const RoadmapPage = () => {
   
   // Fetch user progress
   const { data: userProgress, isLoading: progressLoading, error: progressError } = useQuery<UserProgress, Error>({
-    queryKey: ["/progress"],
+    queryKey: ["/progress/"],
     enabled: !!user,
   });
 
@@ -141,7 +141,7 @@ const RoadmapPage = () => {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/progress"] });
+      queryClient.invalidateQueries({ queryKey: ["/progress/"] });
       toast({
         title: "Progress updated",
         description: "Your roadmap progress has been saved.",

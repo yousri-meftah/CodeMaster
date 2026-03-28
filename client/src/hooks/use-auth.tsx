@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect } from "react";
 import { useQuery, useMutation, UseMutationResult, useQueryClient } from "@tanstack/react-query";
-import { authAPI, type User, type LoginData, type RegisterData, type RegisterResponse } from "../services/api";
+import { authAPI, type User, type LoginData, type RegisterData, type AuthResponse } from "../services/api";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -10,9 +10,10 @@ type AuthContextType = {
   error: Error | null;
   isAdmin: boolean;
   isRecruiter: boolean;
-  loginMutation: UseMutationResult<User, Error, LoginData>;
+  loginMutation: UseMutationResult<AuthResponse, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
-  registerMutation: UseMutationResult<RegisterResponse, Error, RegisterData>;
+  registerMutation: UseMutationResult<AuthResponse, Error, RegisterData>;
+  refreshUser: () => Promise<User | null>;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -31,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["user"],
     queryFn: authAPI.getCurrentUser,
     retry: false,
-    enabled: !!localStorage.getItem('token')
+    staleTime: 60_000,
   });
 
   
@@ -66,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handler = () => {
+      const path = window.location.pathname;
+      if (path.startsWith("/challenge") || path.startsWith("/interview")) {
+        return;
+      }
       queryClient.setQueryData(["user"], null);
       toast({
         title: "Session expired",
@@ -80,9 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: authAPI.login,
-    onSuccess: async () => {
-      const result = await refetchUser();
-      const nextUser = result.data ?? queryClient.getQueryData<User | null>(["user"]);
+    onSuccess: async (result) => {
+      queryClient.setQueryData(["user"], result.user);
+      const refreshed = await refetchUser();
+      const nextUser = refreshed.data ?? result.user ?? queryClient.getQueryData<User | null>(["user"]);
+      if (result.requires_role_selection) {
+        setLocation("/auth/callback?requires_role_selection=1");
+        return;
+      }
       toast({
         title: "Login successful",
         description: "Welcome back!",
@@ -100,12 +110,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerMutation = useMutation({
     mutationFn: authAPI.register,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      queryClient.setQueryData(["user"], result.user);
+      const refreshed = await refetchUser();
+      const nextUser = refreshed.data ?? result.user ?? queryClient.getQueryData<User | null>(["user"]);
+      if (result.requires_role_selection) {
+        setLocation("/auth/callback?requires_role_selection=1");
+        return;
+      }
       toast({
         title: "Registration successful",
-        description: "Account created. Please sign in.",
+        description: "Account created.",
       });
-      setLocation("/auth");
+      setLocation(getPostAuthPath(nextUser));
     },
     onError: (error: Error) => {
       toast({
@@ -119,7 +136,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutMutation = useMutation({
     mutationFn: authAPI.logout,
     onSuccess: () => {
-      // Clear user data from cache
       queryClient.setQueryData(["user"], null);
       toast({
         title: "Logged out",
@@ -128,13 +144,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLocation("/");
     },
     onError: (error: Error) => {
+      queryClient.setQueryData(["user"], null);
       toast({
         title: "Logout failed",
         description: error.message,
         variant: "destructive",
       });
+      setLocation("/");
     },
   });
+
+  const refreshUser = async () => {
+    const result = await refetchUser();
+    return result.data ?? null;
+  };
 
   return (
     <AuthContext.Provider
@@ -147,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginMutation,
         logoutMutation,
         registerMutation,
+        refreshUser,
       }}
     >
       {children}

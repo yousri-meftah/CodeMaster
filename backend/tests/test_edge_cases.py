@@ -1,5 +1,5 @@
 from app.models import User
-from tests.test_auth import _register_user, _login_user
+from tests.test_auth import _auth_headers_from_client, _register_user, _login_user
 
 
 def _make_admin(client, db_session, email):
@@ -7,17 +7,16 @@ def _make_admin(client, db_session, email):
     user = db_session.query(User).filter(User.email == email).first()
     user.is_admin = True
     db_session.commit()
-    login = _login_user(client, email=email)
-    token = login.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    _login_user(client, email=email)
+    return _auth_headers_from_client(client)
 
 
 def test_register_duplicate_email(client):
     first = _register_user(client, email="dup@example.com")
     assert first.status_code == 200
     second = _register_user(client, email="dup@example.com")
-    assert second.status_code == 200
-    assert second.json()["status"] == "error"
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Email already exists"
 
 
 def test_login_invalid_password(client):
@@ -33,9 +32,8 @@ def test_admin_requires_token(client):
 
 def test_admin_rejects_non_admin(client):
     _register_user(client, email="user2@example.com")
-    login = _login_user(client, email="user2@example.com")
-    token = login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    _login_user(client, email="user2@example.com")
+    headers = _auth_headers_from_client(client)
     resp = client.post("/tag/", json={"name": "dp"}, headers=headers)
     assert resp.status_code == 403
 

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useAuth } from "@/hooks/use-auth";
+import { authAPI } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -74,6 +75,16 @@ const AuthPage = () => {
   }, [registerEmail, registerForm]);
 
   if (user) return null;
+
+  const handleOAuth = async (provider: "google" | "github") => {
+    try {
+      const result = await authAPI.getOAuthStart(provider);
+      window.location.href = result.authorization_url;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to start social login.";
+      loginForm.setError("root", { message });
+    }
+  };
 
   const onLoginSubmit = (values: z.infer<typeof loginSchema>) => {
     loginMutation.mutate(values);
@@ -171,6 +182,12 @@ const AuthPage = () => {
               <p className="mt-1 text-sm text-muted-foreground">
                 {mode === "login" ? "Access your workspace and synchronized data." : "Set up your profile and join the workspace."}
               </p>
+
+              {loginForm.formState.errors.root?.message ? (
+                <div className="mt-4 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
+                  {loginForm.formState.errors.root.message}
+                </div>
+              ) : null}
 
               {mode === "login" ? (
                 <Form {...loginForm}>
@@ -332,11 +349,11 @@ const AuthPage = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Button type="button" variant="outline" disabled className="h-10">
+                <Button type="button" variant="outline" className="h-10" onClick={() => handleOAuth("github")} disabled={busy}>
                   <Github className="mr-2 h-4 w-4" />
                   GitHub
                 </Button>
-                <Button type="button" variant="outline" disabled className="h-10">
+                <Button type="button" variant="outline" className="h-10" onClick={() => handleOAuth("google")} disabled={busy}>
                   <GoogleIcon />
                   <span className="ml-2">Google</span>
                 </Button>

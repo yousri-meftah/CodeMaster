@@ -1,5 +1,5 @@
 from app.models import User
-from tests.test_auth import _register_user, _login_user
+from tests.test_auth import _auth_headers_from_client, _register_user, _login_user
 
 
 def _auth_headers(client, db_session):
@@ -8,9 +8,8 @@ def _auth_headers(client, db_session):
     user.is_admin = True
     db_session.commit()
 
-    login = _login_user(client, email="problem@example.com")
-    token = login.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    _login_user(client, email="problem@example.com")
+    return _auth_headers_from_client(client)
 
 
 def test_problem_create_and_list(client, db_session):

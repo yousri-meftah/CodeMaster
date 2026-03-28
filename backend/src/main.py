@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -7,6 +8,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from api import auth ,user , Tag , SavedSolution,Roadmap , Problem , Comment, Progress, Article, Submission, Interviews, Interview 
 from app.services.admin_bootstrap import bootstrap_admin
+from config import settings
 from database import SessionLocal
 
 try:
@@ -19,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    Path(settings.INTERVIEW_MEDIA_UPLOAD_ROOT).mkdir(parents=True, exist_ok=True)
+    app.state.frontend_callback_url = f"{settings.OAUTH_FRONTEND_BASE_URL.rstrip('/')}{settings.OAUTH_FRONTEND_CALLBACK_PATH}"
     db = SessionLocal()
     try:
         status = bootstrap_admin(db)

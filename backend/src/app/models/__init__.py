@@ -21,3 +21,6 @@ from .InterviewProblem import InterviewProblem
 from .InterviewCandidate import InterviewCandidate
 from .InterviewSubmission import InterviewSubmission
 from .InterviewActivityLog import InterviewActivityLog
+from .OAuthAccount import OAuthAccount
+from .RefreshToken import RefreshToken
+from .InterviewMediaSegment import InterviewMediaSegment

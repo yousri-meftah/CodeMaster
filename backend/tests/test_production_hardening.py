@@ -2,7 +2,7 @@ from app.models import User
 from app.services.admin_bootstrap import bootstrap_admin
 from app.services.auth import verify_password
 from config import settings
-from tests.test_auth import _login_user, _register_user
+from tests.test_auth import _auth_headers_from_client, _login_user, _register_user
 
 
 def _set_role(db_session, email: str, role: str, is_admin: bool = False):
@@ -13,9 +13,8 @@ def _set_role(db_session, email: str, role: str, is_admin: bool = False):
 
 
 def _auth_headers(client, email: str):
-    login = _login_user(client, email=email)
-    token = login.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    _login_user(client, email=email)
+    return _auth_headers_from_client(client)
 
 
 def _create_recruiter(client, db_session, email="recruiter-bootstrap@example.com"):
