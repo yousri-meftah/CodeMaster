@@ -23,11 +23,11 @@ Application walkthrough video:
 
 Recommended playback speed: `2x`
 
-<video src="./Demo/demo_3-28-2026.mp4" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/3bc569c0-8181-4888-915b-a8dc9a152649" controls width="100%"></video>
 
 Fallback link:
 
-- [Download the demo video](./Demo/demo_3-28-2026.mp4)
+- [Download the demo video](https://github.com/user-attachments/assets/3bc569c0-8181-4888-915b-a8dc9a152649)
 
 ## Tech Stack
 
