@@ -1,7 +1,14 @@
-import axios, { InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import type { Problem, Roadmap } from "@/types/schema";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+export const resolveApiUrl = (path?: string | null) => {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith("/")) return `${API_BASE_URL}${path}`;
+  return `${API_BASE_URL}/${path}`;
+};
 
 export interface User {
   id: number;
@@ -11,9 +18,14 @@ export interface User {
   phone?: string | null;
   bio?: string | null;
   avatar?: string | null;
-  createdAt?: string | null;
   is_admin?: boolean;
   role?: "user" | "recruiter" | "admin";
+  auth_provider?: "local" | "google" | "github";
+  session_id?: string | null;
+  token_version?: number;
+  issued_at?: string | null;
+  expires_at?: string | null;
+  createdAt?: string | null;
 }
 
 export interface LoginData {
@@ -28,9 +40,15 @@ export interface RegisterData {
   role?: "user" | "recruiter";
 }
 
-export interface RegisterResponse {
-  status: "success" | "error";
-  message: string;
+export interface AuthResponse {
+  token_type: "bearer";
+  user: User;
+  requires_role_selection: boolean;
+}
+
+export interface OAuthStartResponse {
+  authorization_url: string;
+  provider: "google" | "github";
 }
 
 export type TagApi = {
@@ -201,6 +219,29 @@ export type InterviewLog = {
   timestamp?: string | null;
 };
 
+export type InterviewMediaSegment = {
+  id: number;
+  candidate_id: number;
+  candidate_email?: string | null;
+  sequence_number: number;
+  media_kind: string;
+  mime_type: string;
+  size_bytes: number;
+  duration_ms?: number | null;
+  checksum: string;
+  upload_status: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  created_at?: string | null;
+  download_url?: string | null;
+};
+
+export type InterviewMediaStatus = {
+  uploaded_segments: number;
+  latest_sequence_number?: number | null;
+  statuses: InterviewMediaSegment[];
+};
+
 export type CandidateSession = {
   interview_id: number;
   title: string;
@@ -223,102 +264,135 @@ const normalizeProblem = (problem: ProblemApi): Problem => ({
   tags: (problem.tags ?? []).map((tag) => tag.name),
 });
 
-// Create axios instance with default config
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json, text/plain, */*',
+    "Content-Type": "application/json",
+    Accept: "application/json, text/plain, */*",
   },
-  withCredentials: true, // Important for handling cookies/sessions
+  withCredentials: true,
 });
 
-// Add request interceptor to include auth token
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('token');
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+let refreshPromise: Promise<void> | null = null;
+
+const isAuthBootstrapUrl = (url: string) =>
+  url.includes("/auth/login") ||
+  url.includes("/auth/register") ||
+  url.includes("/auth/refresh") ||
+  url.includes("/auth/oauth/") ||
+  url.includes("/auth/social-role");
+
+const isCandidateInterviewUrl = (url: string) => url.includes("/interview/");
+const isCandidateInterviewPath = () => {
+  const path = window.location.pathname;
+  return /^\/challenge(\/|$)/.test(path) || /^\/interview(\/|$)/.test(path);
+};
+
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => config);
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const status = error?.response?.status;
-    const url = error?.config?.url ?? "";
-    const detail = error?.response?.data?.detail;
-    const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/register");
+  async (error: AxiosError<{ detail?: string }>) => {
+    const status = error.response?.status;
+    const url = error.config?.url ?? "";
+    const detail = error.response?.data?.detail;
 
     if (typeof detail === "string" && detail.trim()) {
       error.message = detail;
     }
 
-    if (status === 401 && !isAuthEndpoint) {
-      localStorage.removeItem("token");
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+
+    if (
+      status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isAuthBootstrapUrl(url) &&
+      !isCandidateInterviewUrl(url) &&
+      !isCandidateInterviewPath()
+    ) {
+      originalRequest._retry = true;
+      try {
+        refreshPromise ??= api.post("/auth/refresh").then(() => undefined).finally(() => {
+          refreshPromise = null;
+        });
+        await refreshPromise;
+        return api(originalRequest);
+      } catch (refreshError) {
+        window.dispatchEvent(new CustomEvent("auth:expired"));
+        return Promise.reject(refreshError);
+      }
+    }
+
+    if (status === 401 && !isCandidateInterviewUrl(url) && !isCandidateInterviewPath()) {
       window.dispatchEvent(new CustomEvent("auth:expired"));
     }
+
     return Promise.reject(error);
-  }
+  },
 );
 
-// Auth related API calls
 export const authAPI = {
-  login: async (data: LoginData): Promise<User> => {
+  login: async (data: LoginData): Promise<AuthResponse> => {
     const formData = new URLSearchParams();
-    formData.append('grant_type', 'password');
-    formData.append('username', data.username);
-    formData.append('password', data.password);
-
-    const response = await api.post('/auth/login', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
+    formData.append("grant_type", "password");
+    formData.append("username", data.username);
+    formData.append("password", data.password);
+    const response = await api.post<AuthResponse>("/auth/login", formData, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
-    if (response.data.access_token) {
-      localStorage.setItem('token', response.data.access_token);
-    }
     return response.data;
   },
 
-  register: async (data: RegisterData): Promise<RegisterResponse> => {
-    const payload = {
+  register: async (data: RegisterData): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>("/auth/register", {
       name: data.name,
       password: data.password,
       email: data.email,
       role: data.role ?? "user",
-    };
-
-    const response = await api.post("/auth/register", payload);
-    if (response.data.status !== "success") {
-      throw new Error(response.data.message || "Registration failed");
-    }
+    });
     return response.data;
   },
 
   logout: async (): Promise<void> => {
-    localStorage.removeItem('token');
+    await api.post("/auth/logout");
   },
 
-  getCurrentUser: async (): Promise<User> => {
-    const response = await api.get('/auth/me');
+  refresh: async (): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>("/auth/refresh");
+    return response.data;
+  },
+
+  getCurrentUser: async (): Promise<User | null> => {
+    try {
+      const response = await api.get<User>("/auth/me");
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  getOAuthStart: async (provider: "google" | "github"): Promise<OAuthStartResponse> => {
+    const response = await api.get<OAuthStartResponse>(`/auth/oauth/${provider}/start`);
+    return response.data;
+  },
+
+  completeSocialRole: async (role: "user" | "recruiter"): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>("/auth/social-role", { role });
     return response.data;
   },
 };
 
 export const tagsAPI = {
-  getAllTags: async (): Promise<TagApi[]> => {
-    const response = await api.get("/tag/");
-    return response.data;
-  },
-  createTag: async (name: string): Promise<TagApi> => {
-    const response = await api.post("/tag/", { name });
-    return response.data;
-  },
+  getAllTags: async (): Promise<TagApi[]> => (await api.get("/tag/")).data,
+  createTag: async (name: string): Promise<TagApi> => (await api.post("/tag/", { name })).data,
 };
 
 export const problemsAPI = {
-  getAllProblems: async (params?: { name?: string; difficulty?: string; page?: number; page_size?: number }): Promise<{ items: Problem[]; total: number; page: number; page_size: number }> => {
+  getAllProblems: async (params?: { name?: string; difficulty?: string; page?: number; page_size?: number }) => {
     const response = await api.get<ProblemsPageApi>("/problem/", { params });
     return {
       items: response.data.items.map(normalizeProblem),
@@ -327,24 +401,10 @@ export const problemsAPI = {
       page_size: response.data.page_size,
     };
   },
-
-  getProblemById: async (id: string): Promise<Problem> => {
-    const response = await api.get<ProblemApi>(`/problem/${id}`);
-    return normalizeProblem(response.data);
-  },
-
-  submitSolution: async (problemId: string, code: string) => {
-    const response = await api.post('/SavedSolution', {
-      problem_id: parseInt(problemId),
-      code: code
-    });
-    return response.data;
-  },
-  getSolutionByProblem: async (problemId: number) => {
-    const res = await api.get(`/SavedSolution/${problemId}`);
-    return res.data|| { code: "" }; 
-  },
-  createProblem: async (data : { title: string; difficulty: string; externalUrl?: string; tagNames?: string[] }) => {
+  getProblemById: async (id: string): Promise<Problem> => normalizeProblem((await api.get<ProblemApi>(`/problem/${id}`)).data),
+  submitSolution: async (problemId: string, code: string) => (await api.post("/SavedSolution", { problem_id: parseInt(problemId, 10), code })).data,
+  getSolutionByProblem: async (problemId: number) => (await api.get(`/SavedSolution/${problemId}`)).data || { code: "" },
+  createProblem: async (data: { title: string; difficulty: string; externalUrl?: string; tagNames?: string[] }) => {
     const tags = data.tagNames ?? [];
     const existingTags = await tagsAPI.getAllTags();
     const tagNameToId = new Map(existingTags.map((tag) => [tag.name.toLowerCase(), tag.id]));
@@ -361,15 +421,7 @@ export const problemsAPI = {
         tagNameToId.set(created.name.toLowerCase(), created.id);
       }
     }
-    const payload = {
-      title: data.title,
-      difficulty: data.difficulty,
-      external_link: data.externalUrl,
-      tag_ids
-    };
-    console.log("payload in createProblem:", payload);
-    const response = await api.post("/problem/", payload);
-    return normalizeProblem(response.data);
+    return normalizeProblem((await api.post("/problem/", { title: data.title, difficulty: data.difficulty, external_link: data.externalUrl, tag_ids })).data);
   },
   updateProblem: async (id: number, data: { title: string; difficulty: string; externalUrl?: string; tagNames?: string[] }) => {
     const tags = data.tagNames ?? [];
@@ -388,32 +440,14 @@ export const problemsAPI = {
         tagNameToId.set(created.name.toLowerCase(), created.id);
       }
     }
-
-    const payload = {
-      title: data.title,
-      difficulty: data.difficulty,
-      external_link: data.externalUrl,
-      tag_ids
-    };
-    const response = await api.put(`/problem/${id}`, payload);
-    return normalizeProblem(response.data);
+    return normalizeProblem((await api.put(`/problem/${id}`, { title: data.title, difficulty: data.difficulty, external_link: data.externalUrl, tag_ids })).data);
   },
-  deleteProblem: async (id: number) => {
-    const response = await api.delete(`/problem/${id}`);
-    return response.data;
-  },
-  getDailyProblem: async (): Promise<Problem> => {
-    const response = await api.get<ProblemApi>("/problem/daily");
-    return normalizeProblem(response.data);
-  },
+  deleteProblem: async (id: number) => (await api.delete(`/problem/${id}`)).data,
+  getDailyProblem: async (): Promise<Problem> => normalizeProblem((await api.get<ProblemApi>("/problem/daily")).data),
 };
 
-// Roadmap related API calls
 export const roadmapAPI = {
-  getAllRoadmaps: async (): Promise<RoadmapApi[]> => {
-    const response = await api.get<RoadmapApi[]>('/roadmap');
-    return response.data;
-  },
+  getAllRoadmaps: async (): Promise<RoadmapApi[]> => (await api.get("/roadmap/")).data,
   normalizeRoadmap: (roadmap: RoadmapApi): Roadmap => ({
     id: roadmap.id,
     title: roadmap.title,
@@ -430,169 +464,78 @@ export const roadmapAPI = {
 };
 
 export const activityAPI = {
-  getActivity: async () => {
-    const response = await api.get("/user/activity");
-    return response.data;
-  },
+  getActivity: async () => (await api.get("/user/activity")).data,
 };
 
 export const userAPI = {
-  getSolutions: async () => {
-    const response = await api.get("/user/solutions");
-    return response.data;
-  },
+  getSolutions: async () => (await api.get("/user/solutions")).data,
 };
 
 export const articlesAPI = {
-  getAllArticles: async (category?: string) => {
-    const response = await api.get("/articles/", {
-      params: category ? { category } : undefined,
-    });
-    return response.data;
-  },
-  getArticleById: async (id: number) => {
-    const response = await api.get(`/articles/${id}`);
-    return response.data;
-  },
+  getAllArticles: async (category?: string) => (await api.get("/articles/", { params: category ? { category } : undefined })).data,
+  getArticleById: async (id: number) => (await api.get(`/articles/${id}`)).data,
 };
 
 export const submissionsAPI = {
-  run: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
-    const response = await api.post("/submission/run", payload);
-    return response.data;
-  },
-  submit: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => {
-    const response = await api.post("/submission/submit", payload);
-    return response.data;
-  },
-  getByProblem: async (problemId: number): Promise<SubmissionListItem[]> => {
-    const response = await api.get(`/submission/problem/${problemId}`);
-    return response.data;
-  },
+  run: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => (await api.post("/submission/run", payload)).data,
+  submit: async (payload: { problem_id: number; language: string; code: string }): Promise<SubmissionResult> => (await api.post("/submission/submit", payload)).data,
+  getByProblem: async (problemId: number): Promise<SubmissionListItem[]> => (await api.get(`/submission/problem/${problemId}`)).data,
 };
 
 export const interviewsAPI = {
-  list: async (): Promise<Interview[]> => {
-    const response = await api.get("/interviews/");
-    return response.data;
-  },
-  getById: async (id: number): Promise<InterviewDetail> => {
-    const response = await api.get(`/interviews/${id}`);
-    return response.data;
-  },
-  create: async (payload: {
-    title: string;
-    description?: string;
-    difficulty?: string;
-    duration_minutes: number;
-    availability_days: number;
-    settings: Record<string, unknown>;
-    status: string;
-    problems: InterviewProblemRef[];
-  }): Promise<InterviewDetail> => {
-    const response = await api.post("/interviews/", payload);
-    return response.data;
-  },
-  update: async (
-    id: number,
-    payload: {
-      title: string;
-      description?: string;
-      difficulty?: string;
-      duration_minutes: number;
-      availability_days: number;
-      settings: Record<string, unknown>;
-      status: string;
-      problems: InterviewProblemRef[];
-    },
-  ): Promise<InterviewDetail> => {
-    const response = await api.put(`/interviews/${id}`, payload);
-    return response.data;
-  },
+  list: async (): Promise<Interview[]> => (await api.get("/interviews/")).data,
+  getById: async (id: number): Promise<InterviewDetail> => (await api.get(`/interviews/${id}`)).data,
+  create: async (payload: { title: string; description?: string; difficulty?: string; duration_minutes: number; availability_days: number; settings: Record<string, unknown>; status: string; problems: InterviewProblemRef[] }) => (await api.post("/interviews/", payload)).data,
+  update: async (id: number, payload: { title: string; description?: string; difficulty?: string; duration_minutes: number; availability_days: number; settings: Record<string, unknown>; status: string; problems: InterviewProblemRef[] }) => (await api.put(`/interviews/${id}`, payload)).data,
   delete: async (id: number): Promise<void> => {
     await api.delete(`/interviews/${id}`);
   },
-  addCandidates: async (id: number, emails: string[]): Promise<InterviewCandidateBatch> => {
-    const response = await api.post(`/interviews/${id}/candidates`, { emails });
-    return response.data;
-  },
-  resendCandidateInvite: async (interviewId: number, candidateId: number): Promise<InterviewResendInvite> => {
-    const response = await api.post(`/interviews/${interviewId}/candidates/${candidateId}/resend-invite`);
-    return response.data;
-  },
-  updateCandidateStatus: async (interviewId: number, candidateId: number, status: string): Promise<InterviewCandidate> => {
-    const response = await api.patch(`/interviews/${interviewId}/candidates/${candidateId}/status`, { status });
-    return response.data;
-  },
-  getCandidateReview: async (interviewId: number, candidateId: number): Promise<InterviewCandidateReview> => {
-    const response = await api.get(`/interviews/${interviewId}/candidates/${candidateId}`);
-    return response.data;
-  },
-  getCandidateSubmissions: async (interviewId: number, candidateId: number): Promise<InterviewSubmission[]> => {
-    const response = await api.get(`/interviews/${interviewId}/candidates/${candidateId}/submissions`);
-    return response.data;
-  },
-  getCandidateLogs: async (interviewId: number, candidateId: number): Promise<InterviewLog[]> => {
-    const response = await api.get(`/interviews/${interviewId}/candidates/${candidateId}/logs`);
-    return response.data;
-  },
-  getCandidates: async (
-    id: number,
-    params?: { page?: number; page_size?: number; status?: string; search?: string },
-  ): Promise<InterviewCandidatesPage> => {
-    const response = await api.get(`/interviews/${id}/candidates`, { params });
-    return response.data;
-  },
-  getSubmissions: async (id: number): Promise<InterviewSubmission[]> => {
-    const response = await api.get(`/interviews/${id}/submissions`);
-    return response.data;
-  },
-  getLogs: async (id: number): Promise<InterviewLog[]> => {
-    const response = await api.get(`/interviews/${id}/logs`);
-    return response.data;
-  },
+  addCandidates: async (id: number, emails: string[]): Promise<InterviewCandidateBatch> => (await api.post(`/interviews/${id}/candidates`, { emails })).data,
+  resendCandidateInvite: async (interviewId: number, candidateId: number): Promise<InterviewResendInvite> => (await api.post(`/interviews/${interviewId}/candidates/${candidateId}/resend-invite`)).data,
+  updateCandidateStatus: async (interviewId: number, candidateId: number, status: string): Promise<InterviewCandidate> => (await api.patch(`/interviews/${interviewId}/candidates/${candidateId}/status`, { status })).data,
+  getCandidateReview: async (interviewId: number, candidateId: number): Promise<InterviewCandidateReview> => (await api.get(`/interviews/${interviewId}/candidates/${candidateId}`)).data,
+  getCandidateSubmissions: async (interviewId: number, candidateId: number): Promise<InterviewSubmission[]> => (await api.get(`/interviews/${interviewId}/candidates/${candidateId}/submissions`)).data,
+  getCandidateLogs: async (interviewId: number, candidateId: number): Promise<InterviewLog[]> => (await api.get(`/interviews/${interviewId}/candidates/${candidateId}/logs`)).data,
+  getCandidateMedia: async (interviewId: number, candidateId: number): Promise<InterviewMediaSegment[]> => (await api.get(`/interviews/${interviewId}/candidates/${candidateId}/media`)).data,
+  getCandidates: async (id: number, params?: { page?: number; page_size?: number; status?: string; search?: string }): Promise<InterviewCandidatesPage> => (await api.get(`/interviews/${id}/candidates`, { params })).data,
+  getSubmissions: async (id: number): Promise<InterviewSubmission[]> => (await api.get(`/interviews/${id}/submissions`)).data,
+  getLogs: async (id: number): Promise<InterviewLog[]> => (await api.get(`/interviews/${id}/logs`)).data,
 };
 
 export const interviewSessionAPI = {
-  getSession: async (token: string): Promise<CandidateSession> => {
-    const response = await api.get("/interview/session", { params: { token } });
-    return response.data;
-  },
-  start: async (token: string): Promise<CandidateSession> => {
-    const response = await api.post("/interview/start", null, { params: { token } });
-    return response.data;
-  },
-  save: async (payload: {
+  getSession: async (token: string): Promise<CandidateSession> => (await api.get("/interview/session", { params: { token } })).data,
+  start: async (token: string): Promise<CandidateSession> => (await api.post("/interview/start", null, { params: { token } })).data,
+  save: async (payload: { token: string; problem_id: number; language: string; code: string; change_summary?: Record<string, unknown> }): Promise<InterviewCandidate> => (await api.post("/interview/save", payload)).data,
+  submit: async (token: string): Promise<InterviewCandidate> => (await api.post("/interview/submit", { token })).data,
+  log: async (payload: { token: string; event_type: string; meta?: Record<string, unknown> }): Promise<InterviewCandidate> => (await api.post("/interview/log", payload)).data,
+  uploadMediaSegment: async (payload: {
     token: string;
-    problem_id: number;
-    language: string;
-    code: string;
-    change_summary?: Record<string, unknown>;
-  }): Promise<InterviewCandidate> => {
-    const response = await api.post("/interview/save", payload);
-    return response.data;
+    media_kind: string;
+    sequence_number: number;
+    mime_type: string;
+    started_at?: string;
+    ended_at?: string;
+    duration_ms?: number;
+    file: Blob;
+    filename: string;
+  }): Promise<InterviewMediaSegment> => {
+    const formData = new FormData();
+    formData.append("token", payload.token);
+    formData.append("media_kind", payload.media_kind);
+    formData.append("sequence_number", String(payload.sequence_number));
+    formData.append("mime_type", payload.mime_type);
+    if (payload.started_at) formData.append("started_at", payload.started_at);
+    if (payload.ended_at) formData.append("ended_at", payload.ended_at);
+    if (typeof payload.duration_ms === "number") formData.append("duration_ms", String(payload.duration_ms));
+    formData.append("file", payload.file, payload.filename);
+    return (
+      await api.post("/interview/media/segments", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+    ).data;
   },
-  submit: async (token: string): Promise<InterviewCandidate> => {
-    const response = await api.post("/interview/submit", { token });
-    return response.data;
-  },
-  log: async (payload: { token: string; event_type: string; meta?: Record<string, unknown> }): Promise<InterviewCandidate> => {
-    const response = await api.post("/interview/log", payload);
-    return response.data;
-  },
+  getMediaStatus: async (token: string): Promise<InterviewMediaStatus> => (await api.get("/interview/media/status", { params: { token } })).data,
+  finalizeMedia: async (token: string): Promise<InterviewMediaStatus> => (await api.post("/interview/media/finalize", { token })).data,
 };
 
-// User progress related API calls
-// export const progressAPI = {
-//   getUserProgress: async () => {
-//     const response = await api.get('/progress');
-//     return response.data;
-//   },
-
-//   updateProgress: async (problemId: string, status: string) => {
-//     const response = await api.post('/progress', { problemId, status });
-//     return response.data;
-//   },
-// };
-
-export default api; 
+export default api;

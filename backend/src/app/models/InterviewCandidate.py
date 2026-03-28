@@ -25,3 +25,4 @@ class InterviewCandidate(Base):
     interview = relationship("Interview", back_populates="candidates")
     submissions = relationship("InterviewSubmission", back_populates="candidate", cascade="all, delete-orphan")
     activity_logs = relationship("InterviewActivityLog", back_populates="candidate", cascade="all, delete-orphan")
+    media_segments = relationship("InterviewMediaSegment", back_populates="candidate", cascade="all, delete-orphan")

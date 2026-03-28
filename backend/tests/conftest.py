@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,6 +17,15 @@ _REQUIRED_ENV_DEFAULTS = {
     "SECRET_KEY": "test-secret-key",
     "JWT_ALGORITHM": "HS256",
     "JWT_EXPIRATION_MINUETS": "60",
+    "ACCESS_TOKEN_EXPIRES_MINUTES": "15",
+    "REFRESH_TOKEN_EXPIRES_DAYS": "14",
+    "JWT_ISSUER": "codemaster-backend",
+    "JWT_AUDIENCE": "codemaster-web",
+    "ACCESS_TOKEN_COOKIE_NAME": "access_token",
+    "REFRESH_TOKEN_COOKIE_NAME": "refresh_token",
+    "AUTH_COOKIE_SECURE": "false",
+    "AUTH_COOKIE_SAMESITE": "strict",
+    "AUTH_COOKIE_PATH": "/",
     "CODE_EXPIRATION_MINUTES": "5",
     "POSTGRES_URL": "sqlite+pysqlite:///:memory:",
     "POSTGRES_DB": "test_db",
@@ -24,6 +34,14 @@ _REQUIRED_ENV_DEFAULTS = {
     "POSTGRES_HOST": "localhost",
     "RATE_LIMIT_ENABLED": "false",
     "ADMIN_BOOTSTRAP_ENABLED": "false",
+    "OAUTH_FRONTEND_CALLBACK_PATH": "/auth/callback",
+    "OAUTH_FRONTEND_BASE_URL": "http://localhost:5173",
+    "OAUTH_BACKEND_BASE_URL": "http://localhost:8000",
+    "GOOGLE_OAUTH_CLIENT_ID": "google-client-id",
+    "GOOGLE_OAUTH_CLIENT_SECRET": "google-client-secret",
+    "GITHUB_OAUTH_CLIENT_ID": "github-client-id",
+    "GITHUB_OAUTH_CLIENT_SECRET": "github-client-secret",
+    "INTERVIEW_MEDIA_UPLOAD_ROOT": os.path.join(os.getcwd(), "test_uploads"),
 }
 
 for key, value in _REQUIRED_ENV_DEFAULTS.items():
@@ -35,6 +53,7 @@ from main import app
 
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+pysqlite:///:memory:")
+TEST_UPLOAD_ROOT = os.environ["INTERVIEW_MEDIA_UPLOAD_ROOT"]
 
 connect_args = {}
 if TEST_DATABASE_URL.startswith("sqlite"):
@@ -46,9 +65,11 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
+    shutil.rmtree(TEST_UPLOAD_ROOT, ignore_errors=True)
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+    shutil.rmtree(TEST_UPLOAD_ROOT, ignore_errors=True)
 
 
 @pytest.fixture()

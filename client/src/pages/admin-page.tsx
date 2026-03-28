@@ -338,7 +338,7 @@ const AdminPage = () => {
   // Create roadmap mutation
   const createRoadmapMutation = useMutation({
     mutationFn: async (data: InsertRoadmap) => {
-      const res = await apiRequest("POST", "/roadmap", data);
+      const res = await apiRequest("POST", "/roadmap/", data);
       return res.json();
     },
     onSuccess: () => {

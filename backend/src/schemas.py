@@ -15,6 +15,11 @@ class UserOut(BaseModel):
     phone: Optional[str]
     is_admin: Optional[bool] = False
     role: str = "user"
+    auth_provider: Optional[str] = "local"
+    session_id: Optional[str] = None
+    token_version: int = 0
+    issued_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -339,6 +344,49 @@ class InterviewActivityLogOut(BaseModel):
     event_type: str
     meta: Optional[dict] = None
     timestamp: Optional[datetime] = None
+
+
+class InterviewMediaSegmentOut(BaseModel):
+    id: int
+    candidate_id: int
+    candidate_email: Optional[str] = None
+    sequence_number: int
+    media_kind: str
+    mime_type: str
+    storage_path: Optional[str] = None
+    size_bytes: int
+    duration_ms: Optional[int] = None
+    checksum: str
+    upload_status: str
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    download_url: Optional[str] = None
+
+
+class InterviewMediaSegmentStatusOut(BaseModel):
+    uploaded_segments: int
+    latest_sequence_number: Optional[int] = None
+    statuses: List[InterviewMediaSegmentOut]
+
+
+class InterviewMediaFinalizeIn(BaseModel):
+    token: str
+
+
+class AuthResponseOut(BaseModel):
+    token_type: str = "bearer"
+    user: UserOut
+    requires_role_selection: bool = False
+
+
+class OAuthStartOut(BaseModel):
+    authorization_url: str
+    provider: str
+
+
+class SocialRoleSelectionIn(BaseModel):
+    role: str
 
 
 class CandidateSessionOut(BaseModel):

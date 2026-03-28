@@ -16,11 +16,14 @@ import RoadmapPage from "@/pages/roadmap-page";
 import ProfilePage from "@/pages/profile-page";
 import AdminPage from "@/pages/admin-page";
 import AuthPage from "@/pages/auth-page";
+import AuthCallbackPage from "@/pages/auth-callback-page";
 import ArticleDetailPage from "@/pages/article-detail-page";
 import InterviewsPage from "@/pages/interviews-page";
 import InterviewCreatePage from "@/pages/interview-create-page";
 import InterviewDetailPage from "@/pages/interview-detail-page";
 import InterviewCandidateReviewPage from "@/pages/interview-candidate-review-page";
+import InterviewCandidateRecordsPage from "@/pages/interview-candidate-records-page";
+import InterviewCandidateLogsPage from "@/pages/interview-candidate-logs-page";
 import InterviewEntryPage from "@/pages/interview-entry-page";
 import InterviewSessionPage from "@/pages/interview-session-page";
 import InterviewThankYouPage from "@/pages/interview-thank-you-page";
@@ -33,7 +36,7 @@ function Router() {
   const interviewToken = sessionStorage.getItem("interview_active_token");
   const isChallengePath = location.startsWith("/challenge");
   const isProblemWorkspace = /^\/problems\/[^/]+$/.test(location);
-  const isAuthPath = location === "/auth";
+  const isAuthPath = location === "/auth" || location === "/auth/callback";
 
   if (interviewToken && !isChallengePath) {
     return <Redirect to={`/challenge/session?token=${encodeURIComponent(interviewToken)}`} />;
@@ -51,6 +54,7 @@ function Router() {
           <Route path="/roadmap" component={RoadmapPage} />
           <Route path="/articles/:id" component={ArticleDetailPage} />
           <Route path="/auth" component={AuthPage} />
+          <Route path="/auth/callback" component={AuthCallbackPage} />
           <Route path="/challenge/session" component={InterviewSessionPage} />
           <Route path="/challenge/thank-you" component={InterviewThankYouPage} />
           <Route path="/challenge" component={InterviewEntryPage} />
@@ -59,6 +63,8 @@ function Router() {
           <ProtectedRoute path="/interviews" component={InterviewsPage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/new" component={InterviewCreatePage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/:id/edit" component={InterviewCreatePage} requireRole="recruiter" />
+          <ProtectedRoute path="/interviews/:id/candidates/:candidateId/records" component={InterviewCandidateRecordsPage} requireRole="recruiter" />
+          <ProtectedRoute path="/interviews/:id/candidates/:candidateId/logs" component={InterviewCandidateLogsPage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/:id/candidates/:candidateId" component={InterviewCandidateReviewPage} requireRole="recruiter" />
           <ProtectedRoute path="/interviews/:id" component={InterviewDetailPage} requireRole="recruiter" />
           <ProtectedRoute path="/admin" component={AdminPage} requireRole="admin" />

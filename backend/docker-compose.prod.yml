@@ -15,7 +15,10 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - POSTGRES_HOST=postgres
+      - INTERVIEW_MEDIA_UPLOAD_ROOT=/backend/uploads
       # - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - uploads-data:/backend/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,4 +66,5 @@ networks:
 
 volumes:
   postgres-data:
+  uploads-data:
   # redis-data:

@@ -1,92 +1,115 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import datetime, timezone
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy.orm import Session
 
-from app.models import Interview, InterviewCandidate, InterviewProblem
-from app.services.interview import (
-    create_activity_log,
-    get_candidate_by_token,
-    require_started_candidate,
-    save_candidate_code,
-    serialize_candidate_session,
-    submit_candidate_interview,
+from app.controllers.interview_media import finalize_candidate_media, get_candidate_media_status, upload_candidate_media_segment
+from app.controllers.interview_session import (
+    get_candidate_session,
+    log_candidate_event,
+    save_candidate_interview_code,
+    start_candidate_session,
+    submit_candidate_session,
 )
 from database import get_db
 from schemas import (
     CandidateSessionOut,
+    InterviewCandidateOut,
     InterviewLogIn,
+    InterviewMediaFinalizeIn,
+    InterviewMediaSegmentOut,
+    InterviewMediaSegmentStatusOut,
     InterviewSaveIn,
     InterviewSubmitIn,
-    InterviewCandidateOut,
 )
 
 router = APIRouter()
 
 
-def _load_candidate_with_interview(db: Session, token: str) -> InterviewCandidate:
-    candidate = get_candidate_by_token(db, token)
-    return (
-        db.query(InterviewCandidate)
-        .options(joinedload(InterviewCandidate.interview).joinedload(Interview.interview_problems).joinedload(InterviewProblem.problem))
-        .filter(InterviewCandidate.id == candidate.id)
-        .first()
-    )
-
-
 @router.get("/session", response_model=CandidateSessionOut)
 def get_session(token: str, db: Session = Depends(get_db)):
-    candidate = _load_candidate_with_interview(db, token)
-    return serialize_candidate_session(candidate)
+    try:
+        return get_candidate_session(db=db, token=token)
+    except HTTPException:
+        raise
 
 
 @router.post("/start", response_model=CandidateSessionOut)
 def start_session(token: str, db: Session = Depends(get_db)):
-    candidate = _load_candidate_with_interview(db, token)
-    if candidate.status == "submitted":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Interview already submitted",
-        )
-    if candidate.status == "expired":
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="Interview session expired",
-        )
-    if candidate.status == "pending":
-        now = datetime.now(timezone.utc)
-        candidate.status = "started"
-        candidate.started_at = now
-        candidate.last_seen_at = now
-        db.commit()
-        db.refresh(candidate)
-        candidate = _load_candidate_with_interview(db, token)
-    return serialize_candidate_session(candidate)
+    try:
+        return start_candidate_session(db=db, token=token)
+    except HTTPException:
+        raise
 
 
 @router.post("/save", response_model=InterviewCandidateOut)
 def save_interview_code(payload: InterviewSaveIn, db: Session = Depends(get_db)):
-    candidate = require_started_candidate(db, payload.token)
-    save_candidate_code(
-        db=db,
-        candidate=candidate,
-        problem_id=payload.problem_id,
-        language=payload.language,
-        code=payload.code,
-        change_summary=payload.change_summary,
-    )
-    db.refresh(candidate)
-    return candidate
+    try:
+        return save_candidate_interview_code(
+            db=db,
+            token=payload.token,
+            problem_id=payload.problem_id,
+            language=payload.language,
+            code=payload.code,
+            change_summary=payload.change_summary,
+        )
+    except HTTPException:
+        raise
 
 
 @router.post("/submit", response_model=InterviewCandidateOut)
 def submit_interview(payload: InterviewSubmitIn, db: Session = Depends(get_db)):
-    candidate = require_started_candidate(db, payload.token)
-    return submit_candidate_interview(db, candidate)
+    try:
+        return submit_candidate_session(db=db, token=payload.token)
+    except HTTPException:
+        raise
 
 
 @router.post("/log", response_model=InterviewCandidateOut)
 def log_interview_event(payload: InterviewLogIn, db: Session = Depends(get_db)):
-    candidate = require_started_candidate(db, payload.token)
-    create_activity_log(db, candidate, payload.event_type, payload.meta)
-    db.refresh(candidate)
-    return candidate
+    try:
+        return log_candidate_event(db=db, token=payload.token, event_type=payload.event_type, meta=payload.meta)
+    except HTTPException:
+        raise
+
+
+@router.post("/media/segments", response_model=InterviewMediaSegmentOut)
+def upload_media_segment(
+    token: str = Form(...),
+    media_kind: str = Form(...),
+    sequence_number: int = Form(...),
+    mime_type: str = Form(...),
+    started_at: str | None = Form(None),
+    ended_at: str | None = Form(None),
+    duration_ms: int | None = Form(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        return upload_candidate_media_segment(
+            db=db,
+            token=token,
+            media_kind=media_kind,
+            sequence_number=sequence_number,
+            mime_type=mime_type,
+            started_at=started_at,
+            ended_at=ended_at,
+            duration_ms=duration_ms,
+            file=file,
+        )
+    except HTTPException:
+        raise
+
+
+@router.get("/media/status", response_model=InterviewMediaSegmentStatusOut)
+def media_status(token: str, db: Session = Depends(get_db)):
+    try:
+        return get_candidate_media_status(db=db, token=token)
+    except HTTPException:
+        raise
+
+
+@router.post("/media/finalize", response_model=InterviewMediaSegmentStatusOut)
+def media_finalize(payload: InterviewMediaFinalizeIn, db: Session = Depends(get_db)):
+    try:
+        return finalize_candidate_media(db=db, token=payload.token)
+    except HTTPException:
+        raise

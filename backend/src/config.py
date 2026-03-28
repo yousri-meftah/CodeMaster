@@ -34,6 +34,16 @@ class JwtConfig(BaseConfig):
     SECRET_KEY: str
     JWT_ALGORITHM: str
     JWT_EXPIRATION_MINUETS: int
+    ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRES_DAYS: int = 14
+    JWT_ISSUER: str = "codemaster-backend"
+    JWT_AUDIENCE: str = "codemaster-web"
+    ACCESS_TOKEN_COOKIE_NAME: str = "access_token"
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
+    AUTH_COOKIE_SECURE: bool = False
+    AUTH_COOKIE_SAMESITE: str = "strict"
+    AUTH_COOKIE_DOMAIN: str | None = None
+    AUTH_COOKIE_PATH: str = "/"
     CODE_EXPIRATION_MINUTES : int
 
 
@@ -47,6 +57,20 @@ class MailConfig(BaseConfig):
     MAIL_SEND_ENABLED: bool = True
     INTERVIEW_PUBLIC_BASE_URL: str = "http://localhost:5173"
     INTERVIEW_INVITE_RESEND_COOLDOWN_MINUTES: int = 30
+
+
+class OAuthConfig(BaseConfig):
+    OAUTH_FRONTEND_CALLBACK_PATH: str = "/auth/callback"
+    OAUTH_FRONTEND_BASE_URL: str = "http://localhost:5173"
+    OAUTH_BACKEND_BASE_URL: str = "http://localhost:8000"
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GITHUB_OAUTH_CLIENT_ID: str = ""
+    GITHUB_OAUTH_CLIENT_SECRET: str = ""
+
+
+class UploadConfig(BaseConfig):
+    INTERVIEW_MEDIA_UPLOAD_ROOT: str = str(BASE_DIR / "uploads")
 
 class RedisConfig(BaseConfig):
     REDIS_URL : str = "redis://localhost:6379/0"
@@ -82,6 +106,8 @@ class Settings(
     PostgresConfig,
     JwtConfig,
     MailConfig,
+    OAuthConfig,
+    UploadConfig,
     RedisConfig,
     PistonConfig,
     AlgoConfig,

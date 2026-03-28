@@ -24,6 +24,12 @@ import {
   XCircle,
 } from "lucide-react";
 
+type MediaState = "idle" | "starting" | "ready" | "warning" | "blocked";
+
+type MediaRecorderWindow = Window & {
+  MediaRecorder?: typeof MediaRecorder;
+};
+
 type ProblemStarterCode = {
   id: number;
   language: string;
@@ -178,6 +184,36 @@ const getLanguageFileExtension = (lang: string) => {
   }
 };
 
+const getMediaTone = (state: MediaState) => {
+  switch (state) {
+    case "ready":
+      return "text-emerald-500 dark:text-[#69f6b8]";
+    case "starting":
+      return "text-sky-500 dark:text-[#7aafff]";
+    case "blocked":
+      return "text-rose-500 dark:text-rose-300";
+    case "warning":
+      return "text-amber-500 dark:text-amber-300";
+    default:
+      return "text-slate-400 dark:text-[#a3aac4]";
+  }
+};
+
+const getMediaLabel = (state: MediaState) => {
+  switch (state) {
+    case "ready":
+      return "ready";
+    case "starting":
+      return "starting";
+    case "blocked":
+      return "blocked";
+    case "warning":
+      return "warning";
+    default:
+      return "idle";
+  }
+};
+
 const InterviewSessionPage = () => {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -192,6 +228,10 @@ const InterviewSessionPage = () => {
   const [activeCaseIndex, setActiveCaseIndex] = useState(0);
   const [leftWidth, setLeftWidth] = useState(34);
   const [rightResultsHeight, setRightResultsHeight] = useState(32);
+  const [cameraState, setCameraState] = useState<MediaState>("idle");
+  const [microphoneState, setMicrophoneState] = useState<MediaState>("idle");
+  const [mediaWarning, setMediaWarning] = useState<string | null>(null);
+  const [uploadedSegments, setUploadedSegments] = useState(0);
 
   const codeRef = useRef(code);
   const languageRef = useRef(language);
@@ -202,6 +242,15 @@ const InterviewSessionPage = () => {
   const splitRef = useRef<HTMLDivElement>(null);
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<"vertical" | "right-horizontal" | null>(null);
+  const mediaPreviewRef = useRef<HTMLVideoElement>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaSequenceRef = useRef(1);
+  const mediaUploadInFlightRef = useRef(0);
+  const mediaLogCooldownRef = useRef<Record<string, number>>({});
+  const mediaRotateTimeoutRef = useRef<number | null>(null);
+  const mediaStopReasonRef = useRef<"idle" | "rotate" | "finalize" | "cleanup">("idle");
+  const previousProblemIdRef = useRef<number | null>(null);
 
   const sessionQuery = useQuery<CandidateSession>({
     queryKey: ["candidate-session-active", token],
@@ -269,9 +318,21 @@ const InterviewSessionPage = () => {
     mutationFn: () => interviewSessionAPI.submit(token),
     onSuccess: (candidate) => {
       loggingEnabledRef.current = false;
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        mediaStopReasonRef.current = "finalize";
+        recorder.stop();
+      }
+      if (mediaRotateTimeoutRef.current) {
+        window.clearTimeout(mediaRotateTimeoutRef.current);
+        mediaRotateTimeoutRef.current = null;
+      }
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
       sessionStorage.removeItem("interview_active_token");
       queryClient.invalidateQueries({ queryKey: ["candidate-session-active", token] });
       queryClient.invalidateQueries({ queryKey: ["candidate-session", token] });
+      queryClient.invalidateQueries({ queryKey: ["candidate-media-status", token] });
       queryClient.setQueryData(["candidate-session", token], (previous: CandidateSession | undefined) =>
         previous
           ? {
@@ -294,6 +355,21 @@ const InterviewSessionPage = () => {
   const logMutation = useMutation({
     mutationFn: (payload: { token: string; event_type: string; meta?: Record<string, unknown> }) =>
       interviewSessionAPI.log(payload),
+  });
+
+  const mediaStatusQuery = useQuery({
+    queryKey: ["candidate-media-status", token],
+    queryFn: () => interviewSessionAPI.getMediaStatus(token),
+    enabled: Boolean(token) && session?.status === "started",
+    refetchInterval: 30000,
+  });
+
+  const uploadMediaMutation = useMutation({
+    mutationFn: interviewSessionAPI.uploadMediaSegment,
+    onSuccess: () => {
+      setUploadedSegments((current) => current + 1);
+      queryClient.invalidateQueries({ queryKey: ["candidate-media-status", token] });
+    },
   });
 
   const runMutation = useMutation({
@@ -327,6 +403,27 @@ const InterviewSessionPage = () => {
 
   const lastLogRef = useRef<Record<string, number>>({});
 
+  const logWithCooldown = (eventType: string, meta?: Record<string, unknown>) => {
+    if (!token || !loggingEnabledRef.current || submitMutation.isPending) {
+      return;
+    }
+    const now = Date.now();
+    const last = mediaLogCooldownRef.current[eventType] ?? lastLogRef.current[eventType] ?? 0;
+    if (now - last < 5000) {
+      return;
+    }
+    mediaLogCooldownRef.current[eventType] = now;
+    lastLogRef.current[eventType] = now;
+    logMutation.mutate({ token, event_type: eventType, meta });
+  };
+
+  useEffect(() => {
+    if (!mediaStatusQuery.data) {
+      return;
+    }
+    setUploadedSegments(mediaStatusQuery.data.uploaded_segments);
+  }, [mediaStatusQuery.data]);
+
   useEffect(() => {
     codeRef.current = code;
   }, [code]);
@@ -352,9 +449,15 @@ const InterviewSessionPage = () => {
     const starters = currentProblemQuery.data.starter_codes ?? [];
     const availableLanguages = starters.length > 0 ? starters.map((starter) => starter.language.toLowerCase()) : Object.keys(defaultStarter);
     const storedLanguage = localStorage.getItem(`${storagePrefix}:language`);
-    const nextLanguage = storedLanguage && availableLanguages.includes(storedLanguage) ? storedLanguage : availableLanguages[0];
+    const nextLanguage =
+      storedLanguage && availableLanguages.includes(storedLanguage)
+        ? storedLanguage
+        : availableLanguages.includes(languageRef.current)
+          ? languageRef.current
+          : availableLanguages[0];
+    previousProblemIdRef.current = selectedProblemId;
     setLanguage(nextLanguage);
-  }, [currentProblemQuery.data, storagePrefix]);
+  }, [currentProblemQuery.data, selectedProblemId, storagePrefix]);
 
   useEffect(() => {
     if (!currentProblemQuery.data || !storagePrefix) {
@@ -363,18 +466,21 @@ const InterviewSessionPage = () => {
     const starters = currentProblemQuery.data.starter_codes ?? [];
     const starterMap = new Map(starters.map((starter) => [starter.language.toLowerCase(), starter.code]));
     const storedCode = localStorage.getItem(`${storagePrefix}:code:${language}`);
-    const nextCode = storedCode ?? starterMap.get(language) ?? defaultStarter[language as keyof typeof defaultStarter] ?? "";
+    const nextCode =
+      storedCode && storedCode.length > 0
+        ? storedCode
+        : starterMap.get(language) ?? defaultStarter[language as keyof typeof defaultStarter] ?? "";
     setCode(nextCode);
     setIsDirty(false);
   }, [currentProblemQuery.data, language, storagePrefix]);
 
   useEffect(() => {
-    if (!storagePrefix) {
+    if (!storagePrefix || !currentProblemQuery.data) {
       return;
     }
     localStorage.setItem(`${storagePrefix}:language`, language);
     localStorage.setItem(`${storagePrefix}:code:${language}`, code);
-  }, [code, language, storagePrefix]);
+  }, [code, currentProblemQuery.data, language, storagePrefix]);
 
   useEffect(() => {
     if (!token || session?.status !== "started") {
@@ -410,18 +516,6 @@ const InterviewSessionPage = () => {
     if (!token || !session || session.status !== "started" || !session.settings?.anti_cheat) {
       return;
     }
-    const logWithCooldown = (eventType: string, meta?: Record<string, unknown>) => {
-      if (!loggingEnabledRef.current || submitMutation.isPending) {
-        return;
-      }
-      const now = Date.now();
-      const last = lastLogRef.current[eventType] ?? 0;
-      if (now - last < 5000) {
-        return;
-      }
-      lastLogRef.current[eventType] = now;
-      logMutation.mutate({ token, event_type: eventType, meta });
-    };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         logWithCooldown("tab_hidden", { path: window.location.pathname });
@@ -500,7 +594,7 @@ const InterviewSessionPage = () => {
       if (idleTimer) window.clearTimeout(idleTimer);
       window.clearInterval(mouseInterval);
     };
-  }, [logMutation, session, submitMutation.isPending, token]);
+  }, [session, submitMutation.isPending, token]);
 
   useEffect(() => {
     if (!token || session?.status !== "started") {
@@ -592,6 +686,31 @@ const InterviewSessionPage = () => {
     }
   };
 
+  const finalizeMediaUploads = async () => {
+    if (mediaRotateTimeoutRef.current) {
+      window.clearTimeout(mediaRotateTimeoutRef.current);
+      mediaRotateTimeoutRef.current = null;
+    }
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      mediaStopReasonRef.current = "finalize";
+      recorder.stop();
+    }
+
+    const deadline = Date.now() + 5000;
+    while (mediaUploadInFlightRef.current > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+    }
+
+    try {
+      await interviewSessionAPI.finalizeMedia(token);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not finalize interview media.";
+      setMediaWarning(message);
+      logWithCooldown("media_finalize_failed", { message });
+    }
+  };
+
   const handleRun = async () => {
     if (!selectedProblemId) {
       return;
@@ -618,6 +737,183 @@ const InterviewSessionPage = () => {
     setRunOutput("Running tests...");
     await runMutation.mutateAsync();
   };
+
+  useEffect(() => {
+    if (!token || session?.status !== "started") {
+      return;
+    }
+
+    const MediaRecorderImpl = (window as MediaRecorderWindow).MediaRecorder;
+    if (!navigator.mediaDevices?.getUserMedia || !MediaRecorderImpl) {
+      setCameraState("warning");
+      setMicrophoneState("warning");
+      setMediaWarning("This browser does not support interview recording.");
+      logWithCooldown("media_unsupported", { user_agent: navigator.userAgent });
+      return;
+    }
+
+    let cancelled = false;
+
+    const uploadChunk = async (blob: Blob, startedAt: Date, endedAt: Date) => {
+      if (!blob.size || cancelled) {
+        return;
+      }
+
+      const sequenceNumber = mediaSequenceRef.current;
+      mediaSequenceRef.current += 1;
+      mediaUploadInFlightRef.current += 1;
+
+      try {
+        await uploadMediaMutation.mutateAsync({
+          token,
+          media_kind: "combined",
+          sequence_number: sequenceNumber,
+          mime_type: blob.type || "video/webm",
+          started_at: startedAt.toISOString(),
+          ended_at: endedAt.toISOString(),
+          duration_ms: endedAt.getTime() - startedAt.getTime(),
+          file: blob,
+          filename: `segment-${sequenceNumber}.webm`,
+        });
+        setMediaWarning(null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Media upload failed.";
+        setCameraState("warning");
+        setMicrophoneState("warning");
+        setMediaWarning(message);
+        logWithCooldown("media_upload_failed", { sequence_number: sequenceNumber, message });
+      } finally {
+        mediaUploadInFlightRef.current = Math.max(0, mediaUploadInFlightRef.current - 1);
+      }
+    };
+
+    const segmentDurationMs = 10000;
+
+    const scheduleRotation = () => {
+      if (mediaRotateTimeoutRef.current) {
+        window.clearTimeout(mediaRotateTimeoutRef.current);
+      }
+      mediaRotateTimeoutRef.current = window.setTimeout(() => {
+        const recorder = mediaRecorderRef.current;
+        if (!recorder || recorder.state !== "recording") {
+          return;
+        }
+        mediaStopReasonRef.current = "rotate";
+        recorder.stop();
+      }, segmentDurationMs);
+    };
+
+    const createRecorder = (stream: MediaStream) => {
+      const preferredMimeTypes = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ];
+      const mimeType =
+        preferredMimeTypes.find((candidate) => MediaRecorderImpl.isTypeSupported(candidate)) ?? "";
+      const recorder = mimeType ? new MediaRecorderImpl(stream, { mimeType }) : new MediaRecorderImpl(stream);
+      mediaRecorderRef.current = recorder;
+
+      const segmentStartedAt = new Date();
+
+      recorder.addEventListener("dataavailable", (event) => {
+        if (!event.data || event.data.size === 0) {
+          return;
+        }
+        const segmentEndedAt = new Date();
+        void uploadChunk(event.data, segmentStartedAt, segmentEndedAt);
+      });
+
+      recorder.addEventListener("stop", () => {
+        const stopReason = mediaStopReasonRef.current;
+        mediaRecorderRef.current = null;
+
+        if (cancelled || stopReason === "cleanup" || stopReason === "finalize") {
+          mediaStopReasonRef.current = "idle";
+          return;
+        }
+
+        if (stopReason === "rotate" && session?.status === "started") {
+          mediaStopReasonRef.current = "idle";
+          createRecorder(stream);
+          return;
+        }
+
+        mediaStopReasonRef.current = "idle";
+        if (session?.status === "started") {
+          setCameraState("warning");
+          setMicrophoneState("warning");
+          setMediaWarning("Interview recording stopped before the session ended.");
+          logWithCooldown("media_capture_stopped");
+        }
+      });
+
+      recorder.start();
+      scheduleRotation();
+    };
+
+    const startCapture = async () => {
+      setCameraState("starting");
+      setMicrophoneState("starting");
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        mediaStreamRef.current = stream;
+        if (mediaPreviewRef.current) {
+          mediaPreviewRef.current.srcObject = stream;
+        }
+
+        setCameraState(stream.getVideoTracks().length > 0 ? "ready" : "warning");
+        setMicrophoneState(stream.getAudioTracks().length > 0 ? "ready" : "warning");
+
+        stream.getTracks().forEach((track) => {
+          track.addEventListener("ended", () => {
+            if (cancelled) {
+              return;
+            }
+            const state = track.kind === "video" ? setCameraState : setMicrophoneState;
+            state("warning");
+            setMediaWarning(`${track.kind === "video" ? "Camera" : "Microphone"} access stopped.`);
+            logWithCooldown("media_track_ended", { kind: track.kind });
+          });
+        });
+
+        createRecorder(stream);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Camera or microphone access failed.";
+        setCameraState("blocked");
+        setMicrophoneState("blocked");
+        setMediaWarning(message);
+        logWithCooldown("media_permission_denied", { message });
+      }
+    };
+
+    void startCapture();
+
+    return () => {
+      cancelled = true;
+      if (mediaRotateTimeoutRef.current) {
+        window.clearTimeout(mediaRotateTimeoutRef.current);
+        mediaRotateTimeoutRef.current = null;
+      }
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        mediaStopReasonRef.current = "cleanup";
+        recorder.stop();
+      }
+      mediaRecorderRef.current = null;
+      if (mediaPreviewRef.current) {
+        mediaPreviewRef.current.srcObject = null;
+      }
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    };
+  }, [session?.status, token]);
 
   const timeLeft = useMemo(() => {
     if (!session?.expires_at) {
@@ -774,28 +1070,59 @@ const InterviewSessionPage = () => {
             </div>
             <div className="mb-3 flex flex-col items-center gap-2">
               <div className="relative">
-                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-white dark:border-[#40485d] dark:bg-[#192540]">
-                  <Camera className="h-4 w-4 text-emerald-500 dark:text-[#69f6b8]" />
+                <div className="flex h-20 w-16 items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-white dark:border-[#40485d] dark:bg-[#192540]">
+                  {cameraState === "ready" ? (
+                    <video ref={mediaPreviewRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+                  ) : (
+                    <Camera className={`h-4 w-4 ${getMediaTone(cameraState)}`} />
+                  )}
                 </div>
-                <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-slate-100 bg-emerald-500 dark:border-[#091328] dark:bg-[#69f6b8]" />
+                <div
+                  className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-slate-100 dark:border-[#091328] ${
+                    cameraState === "ready"
+                      ? "bg-emerald-500 dark:bg-[#69f6b8]"
+                      : cameraState === "blocked"
+                        ? "bg-rose-500 dark:bg-rose-400"
+                        : cameraState === "warning"
+                          ? "bg-amber-500 dark:bg-amber-300"
+                          : "bg-slate-300 dark:bg-[#a3aac4]"
+                  }`}
+                />
               </div>
-              <p className="text-center text-[10px] font-bold leading-4 text-slate-700 dark:text-[#dee5ff]">You are live</p>
+              <p className="text-center text-[10px] font-bold leading-4 text-slate-700 dark:text-[#dee5ff]">
+                {cameraState === "ready" && microphoneState === "ready" ? "Recording live" : "Monitoring status"}
+              </p>
               <div className="flex gap-1">
-                <span className="h-1 w-4 rounded-full bg-emerald-500 dark:bg-[#69f6b8]" />
-                <span className="h-1 w-6 rounded-full bg-emerald-500 dark:bg-[#69f6b8]" />
-                <span className="h-1 w-3 rounded-full bg-emerald-300 dark:bg-[#69f6b8]/40" />
+                <span className={`h-1 w-4 rounded-full ${cameraState === "ready" ? "bg-emerald-500 dark:bg-[#69f6b8]" : "bg-slate-300 dark:bg-[#a3aac4]/40"}`} />
+                <span className={`h-1 w-6 rounded-full ${microphoneState === "ready" ? "bg-emerald-500 dark:bg-[#69f6b8]" : "bg-slate-300 dark:bg-[#a3aac4]/40"}`} />
+                <span className={`h-1 w-3 rounded-full ${uploadedSegments > 0 ? "bg-emerald-300 dark:bg-[#69f6b8]/40" : "bg-slate-300 dark:bg-[#a3aac4]/30"}`} />
               </div>
+              <p className="text-center text-[10px] font-medium text-slate-500 dark:text-[#a3aac4]">
+                {uploadedSegments} uploaded
+                {typeof mediaStatusQuery.data?.latest_sequence_number === "number"
+                  ? ` · latest #${mediaStatusQuery.data.latest_sequence_number}`
+                  : ""}
+              </p>
             </div>
             <div className="grid grid-cols-1 gap-2">
               <div className="flex items-center justify-center gap-2 rounded-lg bg-white p-2 dark:bg-[#141f38]">
-                <Mic className="h-4 w-4 text-emerald-500 dark:text-[#69f6b8]" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-[#a3aac4]">Mic</span>
+                <Mic className={`h-4 w-4 ${getMediaTone(microphoneState)}`} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-[#a3aac4]">
+                  Mic {getMediaLabel(microphoneState)}
+                </span>
               </div>
               <div className="flex items-center justify-center gap-2 rounded-lg bg-white p-2 dark:bg-[#141f38]">
-                <Camera className="h-4 w-4 text-emerald-500 dark:text-[#69f6b8]" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-[#a3aac4]">Cam</span>
+                <Camera className={`h-4 w-4 ${getMediaTone(cameraState)}`} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-[#a3aac4]">
+                  Cam {getMediaLabel(cameraState)}
+                </span>
               </div>
             </div>
+            {mediaWarning && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-medium text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-100">
+                {mediaWarning}
+              </div>
+            )}
           </div>
         </aside>
 
@@ -1044,6 +1371,7 @@ const InterviewSessionPage = () => {
                 if (!window.confirm("Finish the interview now?")) return;
                 loggingEnabledRef.current = false;
                 await persistInterviewDrafts();
+                await finalizeMediaUploads();
                 await submitMutation.mutateAsync();
               }}
               disabled={submitMutation.isPending}

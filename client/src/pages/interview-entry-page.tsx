@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
@@ -22,11 +22,41 @@ import {
   ShieldCheck,
   TerminalSquare,
   TimerReset,
+  XCircle,
 } from "lucide-react";
+
+type DeviceStatus = "checking" | "ready" | "warning" | "blocked";
+
+const getStatusTone = (status: DeviceStatus | "offline") => {
+  switch (status) {
+    case "ready":
+      return "text-emerald-400";
+    case "checking":
+      return "text-sky-400";
+    case "warning":
+      return "text-amber-400";
+    case "blocked":
+    case "offline":
+      return "text-rose-400";
+    default:
+      return "text-muted-foreground dark:text-[#a3aac4]";
+  }
+};
+
+const getStatusIndicator = (status: DeviceStatus | "offline") => {
+  return status === "ready" ? CheckCircle2 : status === "checking" ? Loader2 : XCircle;
+};
 
 const InterviewEntryPage = () => {
   const [, setLocation] = useLocation();
   const [manualToken, setManualToken] = useState("");
+  const [cameraStatus, setCameraStatus] = useState<DeviceStatus>("checking");
+  const [microphoneStatus, setMicrophoneStatus] = useState<DeviceStatus>("checking");
+  const [networkStatus, setNetworkStatus] = useState<"checking" | "ready" | "warning" | "offline">("checking");
+  const [networkLabel, setNetworkLabel] = useState("Checking");
+  const [previewNonce, setPreviewNonce] = useState(0);
+  const previewRef = useRef<HTMLVideoElement>(null);
+  const previewStreamRef = useRef<MediaStream | null>(null);
   const token = new URLSearchParams(window.location.search).get("token") ?? "";
 
   const sessionQuery = useQuery<CandidateSession>({
@@ -48,6 +78,163 @@ const InterviewEntryPage = () => {
   });
 
   const errorMessage = sessionQuery.error instanceof Error ? sessionQuery.error.message : "";
+
+  useEffect(() => {
+    if (!token || !navigator.mediaDevices?.getUserMedia) {
+      setCameraStatus("blocked");
+      setMicrophoneStatus("blocked");
+      return;
+    }
+    let active = true;
+
+    const updateFromStream = (stream: MediaStream) => {
+      const videoTrack = stream.getVideoTracks()[0];
+      const audioTrack = stream.getAudioTracks()[0];
+      setCameraStatus(videoTrack ? (videoTrack.readyState === "live" && videoTrack.enabled ? "ready" : "warning") : "blocked");
+      setMicrophoneStatus(audioTrack ? (audioTrack.readyState === "live" && audioTrack.enabled ? "ready" : "warning") : "blocked");
+    };
+
+    const attachStreamListeners = (stream: MediaStream) => {
+      stream.getTracks().forEach((track) => {
+        const refresh = () => {
+          if (!active) return;
+          updateFromStream(stream);
+        };
+        track.addEventListener("ended", refresh);
+        track.addEventListener("mute", refresh);
+        track.addEventListener("unmute", refresh);
+      });
+    };
+
+    const refreshDevices = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (!active) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        previewStreamRef.current?.getTracks().forEach((track) => track.stop());
+        previewStreamRef.current = stream;
+        updateFromStream(stream);
+        attachStreamListeners(stream);
+        setPreviewNonce((value) => value + 1);
+      } catch {
+        if (!active) return;
+        setCameraStatus("blocked");
+        setMicrophoneStatus("blocked");
+        if (previewRef.current) {
+          previewRef.current.srcObject = null;
+        }
+      }
+    };
+
+    void refreshDevices();
+
+    const onDeviceChange = () => {
+      setCameraStatus("checking");
+      setMicrophoneStatus("checking");
+      void refreshDevices();
+    };
+
+    navigator.mediaDevices.addEventListener?.("devicechange", onDeviceChange);
+
+    return () => {
+      active = false;
+      navigator.mediaDevices.removeEventListener?.("devicechange", onDeviceChange);
+      previewStreamRef.current?.getTracks().forEach((track) => track.stop());
+      previewStreamRef.current = null;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    const video = previewRef.current;
+    const stream = previewStreamRef.current;
+    if (!video || !stream) {
+      return;
+    }
+
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+
+    const playPreview = async () => {
+      try {
+        await video.play();
+      } catch {
+        // Ignore autoplay rejections; the stream is still attached and can render after user interaction.
+      }
+    };
+
+    if (video.readyState >= 1) {
+      void playPreview();
+      return;
+    }
+
+    video.onloadedmetadata = () => {
+      void playPreview();
+    };
+
+    return () => {
+      video.onloadedmetadata = null;
+    };
+  }, [previewNonce, cameraStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const updateNetwork = async () => {
+      if (!navigator.onLine) {
+        if (!cancelled) {
+          setNetworkStatus("offline");
+          setNetworkLabel("Offline");
+        }
+        return;
+      }
+
+      setNetworkStatus("checking");
+      setNetworkLabel("Checking");
+      const startedAt = performance.now();
+      try {
+        await fetch(`${window.location.origin}/favicon.png`, { cache: "no-store" });
+        if (cancelled) return;
+        const elapsed = performance.now() - startedAt;
+        if (elapsed < 500) {
+          setNetworkStatus("ready");
+          setNetworkLabel("Optimal");
+        } else if (elapsed < 1500) {
+          setNetworkStatus("warning");
+          setNetworkLabel("Stable");
+        } else {
+          setNetworkStatus("warning");
+          setNetworkLabel("Slow");
+        }
+      } catch {
+        if (!cancelled) {
+          setNetworkStatus("offline");
+          setNetworkLabel("Offline");
+        }
+      }
+    };
+
+    void updateNetwork();
+    const interval = window.setInterval(() => {
+      void updateNetwork();
+    }, 15000);
+    const onOnline = () => void updateNetwork();
+    const onOffline = () => {
+      setNetworkStatus("offline");
+      setNetworkLabel("Offline");
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   if (!token) {
     return (
@@ -113,6 +300,12 @@ const InterviewEntryPage = () => {
     `Maintain a stable internet connection throughout the ${durationLabel.toLowerCase()} duration.`,
     "External IDEs are permitted, but final code must be submitted in the interview editor.",
     "Camera and microphone checks are shown below and will be used for secure proctoring later.",
+  ];
+
+  const systemChecks = [
+    { icon: Mic, label: "Microphone", status: microphoneStatus, display: microphoneStatus === "ready" ? "Ready" : microphoneStatus === "checking" ? "Checking" : microphoneStatus === "warning" ? "Unstable" : "Blocked" },
+    { icon: Camera, label: "Camera", status: cameraStatus, display: cameraStatus === "ready" ? "Ready" : cameraStatus === "checking" ? "Checking" : cameraStatus === "warning" ? "Unstable" : "Blocked" },
+    { icon: Gauge, label: "Network", status: networkStatus, display: networkLabel },
   ];
 
   return (
@@ -224,38 +417,47 @@ const InterviewEntryPage = () => {
               </div>
 
               <div className="space-y-3">
-                {[
-                  { icon: Mic, label: "Microphone", status: "Ready" },
-                  { icon: Camera, label: "Camera", status: "Ready" },
-                  { icon: Gauge, label: "Network", status: "Optimal" },
-                ].map((item) => (
+                {systemChecks.map((item) => {
+                  const StatusIcon = getStatusIndicator(item.status);
+                  return (
                   <div
                     key={item.label}
                     className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-4 py-3 dark:border-white/5 dark:bg-[#141f38]"
                   >
                     <div className="flex items-center gap-4">
-                      <item.icon className="h-4 w-4 text-muted-foreground dark:text-[#a3aac4]" />
+                      <item.icon className={`h-4 w-4 ${getStatusTone(item.status)}`} />
                       <span className="text-sm font-medium">{item.label}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <span className="text-sm font-bold">{item.status}</span>
-                      <CheckCircle2 className="h-4 w-4" />
+                    <div className={`flex items-center gap-2 ${getStatusTone(item.status)}`}>
+                      <span className="text-sm font-bold">{item.display}</span>
+                      <StatusIcon className={`h-4 w-4 ${item.status === "checking" ? "animate-spin" : ""}`} />
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
 
               <div className="relative mt-5 aspect-[16/8.5] overflow-hidden rounded-xl border border-border/60 bg-black/30 dark:border-white/10">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.25),transparent_40%),linear-gradient(180deg,rgba(0,0,0,0.12),rgba(0,0,0,0.48))]" />
                 <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:24px_24px]" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <Camera className="h-7 w-7" />
+                {cameraStatus === "ready" ? (
+                  <>
+                    <video ref={previewRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full object-cover" />
+                    <div className="absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">
+                      Live camera
                     </div>
-                    <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Camera Active</p>
+                  </>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 text-primary">
+                        <Camera className="h-7 w-7" />
+                      </div>
+                      <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+                        {cameraStatus === "checking" ? "Checking Camera" : cameraStatus === "warning" ? "Camera Signal Unstable" : "Camera Preview Unavailable"}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="mt-6 space-y-3">

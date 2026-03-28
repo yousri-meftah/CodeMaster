@@ -24,6 +24,8 @@ celerybeat.pid
 .venv
 venv/
 backend.env
+test_uploads/
+backend/test_uploads/
 .DS_Store
 TODO.md
 pg.env
