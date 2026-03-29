@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 
@@ -14,6 +15,7 @@ from app.services.object_storage import (
     r2_is_configured,
     upload_interview_media,
 )
+from config import settings
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:
@@ -29,6 +31,10 @@ def _parse_timestamp(value: str | None) -> datetime | None:
 def _candidate_media_object_key(candidate: InterviewCandidate, sequence_number: int, media_kind: str, suffix: str) -> str:
     normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}" if suffix else ".bin"
     return f"interviews/{candidate.interview_id}/candidates/{candidate.id}/{sequence_number:06d}_{media_kind}{normalized_suffix}"
+
+
+def _candidate_upload_dir(candidate: InterviewCandidate) -> Path:
+    return Path(settings.INTERVIEW_MEDIA_UPLOAD_ROOT) / f"interview_{candidate.interview_id}" / f"candidate_{candidate.id}"
 
 
 def upload_candidate_media_segment(
@@ -57,8 +63,6 @@ def upload_candidate_media_segment(
     )
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Media segment already uploaded")
-    if not r2_is_configured():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Media storage is not configured")
 
     suffix = Path(file.filename).suffix or ".bin"
     object_key = _candidate_media_object_key(candidate, sequence_number, media_kind, suffix)
@@ -69,16 +73,24 @@ def upload_candidate_media_segment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty media upload")
 
     resolved_mime_type = mime_type or file.content_type or "application/octet-stream"
-    try:
-        upload_interview_media(object_key=object_key, content=content, content_type=resolved_mime_type)
-    except ObjectStorageError as exc:
-        create_activity_log(
-            db,
-            candidate,
-            "media_upload_storage_failed",
-            {"sequence_number": sequence_number, "media_kind": media_kind, "message": str(exc)},
-        )
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Failed to store media segment") from exc
+    if r2_is_configured():
+        try:
+            upload_interview_media(object_key=object_key, content=content, content_type=resolved_mime_type)
+            storage_path = object_key
+        except ObjectStorageError as exc:
+            create_activity_log(
+                db,
+                candidate,
+                "media_upload_storage_failed",
+                {"sequence_number": sequence_number, "media_kind": media_kind, "message": str(exc)},
+            )
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Failed to store media segment") from exc
+    else:
+        candidate_dir = _candidate_upload_dir(candidate)
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        output_path = candidate_dir / f"{sequence_number:06d}_{media_kind}{suffix}"
+        output_path.write_bytes(content)
+        storage_path = str(output_path)
 
     checksum = hashlib.sha256(content).hexdigest()
     segment = InterviewMediaSegment(
@@ -86,7 +98,7 @@ def upload_candidate_media_segment(
         sequence_number=sequence_number,
         media_kind=media_kind,
         mime_type=resolved_mime_type,
-        storage_path=object_key,
+        storage_path=storage_path,
         size_bytes=len(content),
         duration_ms=duration_ms,
         checksum=checksum,
@@ -155,6 +167,11 @@ def stream_candidate_media_segment(*, db: Session, interview_id: int, candidate_
     )
     if not segment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media segment not found")
+    if not r2_is_configured():
+        path = Path(segment.storage_path)
+        if not path.exists():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored media file missing")
+        return FileResponse(path, media_type=segment.mime_type, filename=path.name)
     try:
         download_url = generate_interview_media_download_url(segment.storage_path)
     except ObjectStorageError as exc:
@@ -171,10 +188,7 @@ def _serialize_media_segment(
 ) -> dict:
     download_url = None
     if interview_id:
-        try:
-            download_url = generate_interview_media_download_url(segment.storage_path)
-        except ObjectStorageError:
-            download_url = f"/interviews/{interview_id}/candidates/{segment.candidate_id}/media/{segment.id}"
+        download_url = f"/interviews/{interview_id}/candidates/{segment.candidate_id}/media/{segment.id}"
 
     return {
         "id": segment.id,

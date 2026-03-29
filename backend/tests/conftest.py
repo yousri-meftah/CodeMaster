@@ -42,10 +42,17 @@ _REQUIRED_ENV_DEFAULTS = {
     "GITHUB_OAUTH_CLIENT_ID": "github-client-id",
     "GITHUB_OAUTH_CLIENT_SECRET": "github-client-secret",
     "INTERVIEW_MEDIA_UPLOAD_ROOT": os.path.join(os.getcwd(), "test_uploads"),
+    "R2_ACCOUNT_ID": "",
+    "R2_BUCKET": "",
+    "R2_ACCESS_KEY_ID": "",
+    "R2_SECRET_ACCESS_KEY": "",
+    "R2_ENDPOINT_URL": "",
+    "R2_REGION": "auto",
+    "R2_PRESIGNED_URL_TTL_SECONDS": "3600",
 }
 
 for key, value in _REQUIRED_ENV_DEFAULTS.items():
-    os.environ.setdefault(key, value)
+    os.environ[key] = value
 
 from app.models import Base
 from database import get_db
