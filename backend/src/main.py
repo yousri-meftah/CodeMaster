@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title='PointOfSell',
-    description='FastApi PointOfSell Project',
+    title='CodeMaster',
+    description='CodeMaster API',
     version='1.0.0',
     docs_url=None,
     redoc_url=None,
