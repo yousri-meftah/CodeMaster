@@ -3,12 +3,17 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Interview, InterviewCandidate, InterviewMediaSegment
+from app.models import InterviewCandidate, InterviewMediaSegment
 from app.services.interview import create_activity_log, get_candidate_by_token, load_interview_or_404, require_started_candidate
-from config import settings
+from app.services.object_storage import (
+    ObjectStorageError,
+    generate_interview_media_download_url,
+    r2_is_configured,
+    upload_interview_media,
+)
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:
@@ -21,8 +26,9 @@ def _parse_timestamp(value: str | None) -> datetime | None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timestamp") from exc
 
 
-def _candidate_upload_dir(candidate: InterviewCandidate) -> Path:
-    return Path(settings.INTERVIEW_MEDIA_UPLOAD_ROOT) / f"interview_{candidate.interview_id}" / f"candidate_{candidate.id}"
+def _candidate_media_object_key(candidate: InterviewCandidate, sequence_number: int, media_kind: str, suffix: str) -> str:
+    normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}" if suffix else ".bin"
+    return f"interviews/{candidate.interview_id}/candidates/{candidate.id}/{sequence_number:06d}_{media_kind}{normalized_suffix}"
 
 
 def upload_candidate_media_segment(
@@ -51,25 +57,36 @@ def upload_candidate_media_segment(
     )
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Media segment already uploaded")
+    if not r2_is_configured():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Media storage is not configured")
 
-    candidate_dir = _candidate_upload_dir(candidate)
-    candidate_dir.mkdir(parents=True, exist_ok=True)
     suffix = Path(file.filename).suffix or ".bin"
-    output_path = candidate_dir / f"{sequence_number:06d}_{media_kind}{suffix}"
+    object_key = _candidate_media_object_key(candidate, sequence_number, media_kind, suffix)
 
     content = file.file.read()
     if not content:
         create_activity_log(db, candidate, "media_upload_empty", {"sequence_number": sequence_number, "media_kind": media_kind})
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty media upload")
 
-    output_path.write_bytes(content)
+    resolved_mime_type = mime_type or file.content_type or "application/octet-stream"
+    try:
+        upload_interview_media(object_key=object_key, content=content, content_type=resolved_mime_type)
+    except ObjectStorageError as exc:
+        create_activity_log(
+            db,
+            candidate,
+            "media_upload_storage_failed",
+            {"sequence_number": sequence_number, "media_kind": media_kind, "message": str(exc)},
+        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Failed to store media segment") from exc
+
     checksum = hashlib.sha256(content).hexdigest()
     segment = InterviewMediaSegment(
         candidate_id=candidate.id,
         sequence_number=sequence_number,
         media_kind=media_kind,
-        mime_type=mime_type or file.content_type or "application/octet-stream",
-        storage_path=str(output_path),
+        mime_type=resolved_mime_type,
+        storage_path=object_key,
         size_bytes=len(content),
         duration_ms=duration_ms,
         checksum=checksum,
@@ -122,7 +139,7 @@ def list_candidate_media_for_recruiter(*, db: Session, interview_id: int, candid
     return [_serialize_media_segment(row, candidate_email=candidate.email, include_storage_path=False, interview_id=interview_id) for row in rows]
 
 
-def stream_candidate_media_segment(*, db: Session, interview_id: int, candidate_id: int, segment_id: int, user) -> FileResponse:
+def stream_candidate_media_segment(*, db: Session, interview_id: int, candidate_id: int, segment_id: int, user) -> RedirectResponse:
     interview = load_interview_or_404(db, interview_id)
     if not (getattr(user, "is_admin", False) or getattr(user, "role", "user") == "admin") and interview.recruiter_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
@@ -138,10 +155,11 @@ def stream_candidate_media_segment(*, db: Session, interview_id: int, candidate_
     )
     if not segment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media segment not found")
-    path = Path(segment.storage_path)
-    if not path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored media file missing")
-    return FileResponse(path, media_type=segment.mime_type, filename=path.name)
+    try:
+        download_url = generate_interview_media_download_url(segment.storage_path)
+    except ObjectStorageError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Media file is temporarily unavailable") from exc
+    return RedirectResponse(download_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 def _serialize_media_segment(
@@ -151,6 +169,13 @@ def _serialize_media_segment(
     include_storage_path: bool,
     interview_id: int | None = None,
 ) -> dict:
+    download_url = None
+    if interview_id:
+        try:
+            download_url = generate_interview_media_download_url(segment.storage_path)
+        except ObjectStorageError:
+            download_url = f"/interviews/{interview_id}/candidates/{segment.candidate_id}/media/{segment.id}"
+
     return {
         "id": segment.id,
         "candidate_id": segment.candidate_id,
@@ -166,5 +191,5 @@ def _serialize_media_segment(
         "started_at": segment.started_at,
         "ended_at": segment.ended_at,
         "created_at": segment.created_at,
-        "download_url": f"/interviews/{interview_id}/candidates/{segment.candidate_id}/media/{segment.id}" if interview_id else None,
+        "download_url": download_url,
     }

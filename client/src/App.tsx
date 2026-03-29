@@ -39,7 +39,7 @@ function Router() {
   const isAuthPath = location === "/auth" || location === "/auth/callback";
 
   if (interviewToken && !isChallengePath) {
-    return <Redirect to={`/challenge/session?token=${encodeURIComponent(interviewToken)}`} />;
+    return <Redirect to="/challenge/session" />;
   }
 
   return (

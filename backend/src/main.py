@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Path(settings.INTERVIEW_MEDIA_UPLOAD_ROOT).mkdir(parents=True, exist_ok=True)
+    if not settings.R2_BUCKET:
+        Path(settings.INTERVIEW_MEDIA_UPLOAD_ROOT).mkdir(parents=True, exist_ok=True)
     app.state.frontend_callback_url = f"{settings.OAUTH_FRONTEND_BASE_URL.rstrip('/')}{settings.OAUTH_FRONTEND_CALLBACK_PATH}"
     db = SessionLocal()
     try:

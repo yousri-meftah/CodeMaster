@@ -29,6 +29,10 @@ Fallback link:
 
 - [Download the demo video](https://github.com/user-attachments/assets/3bc569c0-8181-4888-915b-a8dc9a152649)
 
+Cloudflare R2 media storage:
+
+![Cloudflare R2 Setup](Demo/images/Cloudflare_R2.PNG)
+
 ## Tech Stack
 
 - Frontend: React, Vite, TypeScript
@@ -63,7 +67,7 @@ flowchart LR
 Clone the repository:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/yousri-meftah/CodeMaster
 cd CodeMaster
 ```
 
@@ -104,86 +108,41 @@ Default local URLs:
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:8000`
 
-## Authentication and Sessions
-
-The web app now uses cookie-based sessions for normal authenticated routes.
-
-- `access_token` is stored in an `HttpOnly` cookie with a short TTL
-- `refresh_token` is stored in an `HttpOnly` cookie and rotated on refresh
-- `POST /auth/logout` revokes the active refresh token and clears both cookies
-- `GET /auth/me` returns the decoded access-token claims for session bootstrap
-- Google and GitHub OAuth are supported through backend-managed callback flows
-
-Important frontend rule: do not store auth tokens in `localStorage` and do not send bearer tokens for normal web-session routes.
 
 ## Interview Monitoring
 
 Interview sessions support optional candidate media capture for recruiter review.
 
 - Candidates can upload camera/microphone segments during an interview
-- Segment metadata is stored in PostgreSQL and media files are stored on disk
+- Segment metadata is stored in PostgreSQL and media files are stored in Cloudflare R2
 - Recruiters can review uploaded recordings and activity logs on separate review pages
 - Media warnings such as permission denial or upload failure are logged as activity events
+- Recruiter playback is served through backend-controlled presigned download URLs
 - Resetting a submitted candidate back to `pending` clears code, logs, media metadata, and uploaded files so the candidate can start fresh on a new invite
 
-Interview link validity is anchored to when the invite email is sent, not when the interview record is created.
+### Cloudflare R2 Setup
 
-## Environment Configuration
+Candidate interview recordings are now stored in Cloudflare R2 instead of the backend filesystem.
 
-The backend now expects additional env values for auth, OAuth, and media uploads. See `backend/envs/example.env` for the full template. The main new groups are:
+Required backend env values:
 
-- JWT and cookie settings
-  - `ACCESS_TOKEN_EXPIRES_MINUTES`
-  - `REFRESH_TOKEN_EXPIRES_DAYS`
-  - `JWT_ISSUER`
-  - `JWT_AUDIENCE`
-  - `ACCESS_TOKEN_COOKIE_NAME`
-  - `REFRESH_TOKEN_COOKIE_NAME`
-  - `AUTH_COOKIE_SECURE`
-  - `AUTH_COOKIE_SAMESITE`
-  - `AUTH_COOKIE_DOMAIN`
-  - `AUTH_COOKIE_PATH`
-- OAuth settings
-  - `OAUTH_BACKEND_BASE_URL`
-  - `OAUTH_FRONTEND_BASE_URL`
-  - `OAUTH_FRONTEND_CALLBACK_PATH`
-  - `GOOGLE_OAUTH_CLIENT_ID`
-  - `GOOGLE_OAUTH_CLIENT_SECRET`
-  - `GITHUB_OAUTH_CLIENT_ID`
-  - `GITHUB_OAUTH_CLIENT_SECRET`
-- Interview uploads
-  - `INTERVIEW_MEDIA_UPLOAD_ROOT`
-
-OAuth callback URLs must exactly match your backend base URL:
-
-- Google: `${OAUTH_BACKEND_BASE_URL}/auth/oauth/google/callback`
-- GitHub: `${OAUTH_BACKEND_BASE_URL}/auth/oauth/github/callback`
-
-## Frontend Integration Contract
-
-The backend-facing frontend contract for the new auth and interview-media APIs is documented in:
-
-- `backend/docs/frontend-auth-and-interview-media-contract.md`
-
-It describes request and response shapes, cookies, status codes, retry behavior, OAuth callback handling, and media upload expectations.
-
-## Validation
-
-Run these before shipping:
-
-Backend:
-
-```bash
-cd backend
-python -m pytest
+```env
+R2_ACCOUNT_ID=your_account_id
+R2_BUCKET=codemaster-interview-media
+R2_ACCESS_KEY_ID=your_access_key_id
+R2_SECRET_ACCESS_KEY=your_secret_access_key
+R2_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com
+R2_REGION=auto
+R2_PRESIGNED_URL_TTL_SECONDS=3600
 ```
 
-Frontend:
+Operational notes:
 
-```bash
-cd client
-npm run build
-```
+- Create an R2 bucket dedicated to interview media
+- Create credentials scoped to that bucket with object read/write permissions
+- Keep the bucket private and let the backend generate presigned playback URLs
+- Install backend dependencies after pulling the changes so `boto3` is available
+
 
 ## Docker
 
@@ -235,19 +194,6 @@ Required GitHub Actions secrets:
 
 Deploy from prebuilt images:
 
-```bash
-docker compose -f docker-compose.deploy.yml pull
-docker compose -f docker-compose.deploy.yml up -d
-```
-
-To deploy a pinned image tag:
-
-```bash
-set CODEMASTER_IMAGE_TAG=sha-xxxxxxxx
-docker compose -f docker-compose.deploy.yml pull
-docker compose -f docker-compose.deploy.yml up -d
-```
-
 ## Monitoring
 
 Optional monitoring is included with:
@@ -255,17 +201,10 @@ Optional monitoring is included with:
 - Prometheus
 - Grafana
 
-Default endpoints when enabled:
-
-- Application: `http://localhost`
-- Health check: `http://localhost/healthz`
-- Metrics: `http://localhost/metrics`
-- Prometheus: `http://127.0.0.1:9090`
-- Grafana: `http://127.0.0.1:3001`
 
 ## Notes
 
 - Environment-specific values such as database credentials, mail settings, execution service URLs, and compiler paths should be supplied through env files.
 - For container deployments, keep server-specific secrets and infrastructure settings outside the repository.
 - If you are deploying with prebuilt images, make sure your runtime env files match your server topology.
-- The deploy stack now also needs the OAuth env values, auth-cookie settings, and an upload path or volume for interview media persistence.
+- The deploy stack now also needs the OAuth env values, auth-cookie settings, and Cloudflare R2 credentials for interview media persistence.

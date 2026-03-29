@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
-import { interviewSessionAPI, type CandidateSession } from "@/services/api";
+import { getActiveInterviewToken, interviewSessionAPI, type CandidateSession } from "@/services/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +57,7 @@ const InterviewEntryPage = () => {
   const [previewNonce, setPreviewNonce] = useState(0);
   const previewRef = useRef<HTMLVideoElement>(null);
   const previewStreamRef = useRef<MediaStream | null>(null);
-  const token = new URLSearchParams(window.location.search).get("token") ?? "";
+  const token = new URLSearchParams(window.location.search).get("token") ?? getActiveInterviewToken();
 
   const sessionQuery = useQuery<CandidateSession>({
     queryKey: ["candidate-session", token],
@@ -73,7 +73,7 @@ const InterviewEntryPage = () => {
       queryClient.setQueryData(["candidate-session", token], session);
       queryClient.setQueryData(["candidate-session-active", token], session);
       sessionStorage.setItem("interview_active_token", token);
-      setLocation(`/challenge/session?token=${encodeURIComponent(token)}`);
+      setLocation("/challenge/session");
     },
   });
 
@@ -474,7 +474,7 @@ const InterviewEntryPage = () => {
                 {canContinue && (
                   <Button
                     className="h-12 w-full rounded-xl bg-gradient-to-r from-primary to-sky-500 text-sm font-extrabold uppercase tracking-[0.15em] shadow-[0_12px_30px_rgba(59,130,246,0.22)]"
-                    onClick={() => setLocation(`/challenge/session?token=${encodeURIComponent(token)}`)}
+                    onClick={() => setLocation("/challenge/session")}
                   >
                     <TimerReset className="mr-2 h-4 w-4" />
                     Continue Interview

@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useToast } from "@/hooks/use-toast";
-import { interviewSessionAPI, problemsAPI, submissionsAPI, type CandidateSession, type SubmissionResult } from "@/services/api";
+import { getActiveInterviewToken, interviewSessionAPI, problemsAPI, submissionsAPI, type CandidateSession, type SubmissionResult } from "@/services/api";
 import {
   AlertCircle,
   Camera,
@@ -60,7 +60,7 @@ const defaultStarter = {
   algo: "algorithme solve\n\ndebut\n    // TODO\nfin\n",
 };
 
-const getToken = () => new URLSearchParams(window.location.search).get("token") ?? "";
+const getToken = () => new URLSearchParams(window.location.search).get("token") ?? getActiveInterviewToken();
 
 const hashString = (value: string) => {
   let hash = 5381;
@@ -332,7 +332,6 @@ const InterviewSessionPage = () => {
       sessionStorage.removeItem("interview_active_token");
       queryClient.invalidateQueries({ queryKey: ["candidate-session-active", token] });
       queryClient.invalidateQueries({ queryKey: ["candidate-session", token] });
-      queryClient.invalidateQueries({ queryKey: ["candidate-media-status", token] });
       queryClient.setQueryData(["candidate-session", token], (previous: CandidateSession | undefined) =>
         previous
           ? {
@@ -344,7 +343,7 @@ const InterviewSessionPage = () => {
           : previous,
       );
       toast({ title: "Interview submitted", description: "Your responses have been recorded." });
-      setLocation(`/challenge/thank-you?token=${encodeURIComponent(token)}`);
+      setLocation("/challenge/thank-you");
     },
     onError: (error: Error) => {
       loggingEnabledRef.current = true;
@@ -357,18 +356,10 @@ const InterviewSessionPage = () => {
       interviewSessionAPI.log(payload),
   });
 
-  const mediaStatusQuery = useQuery({
-    queryKey: ["candidate-media-status", token],
-    queryFn: () => interviewSessionAPI.getMediaStatus(token),
-    enabled: Boolean(token) && session?.status === "started",
-    refetchInterval: 30000,
-  });
-
   const uploadMediaMutation = useMutation({
     mutationFn: interviewSessionAPI.uploadMediaSegment,
     onSuccess: () => {
       setUploadedSegments((current) => current + 1);
-      queryClient.invalidateQueries({ queryKey: ["candidate-media-status", token] });
     },
   });
 
@@ -416,13 +407,6 @@ const InterviewSessionPage = () => {
     lastLogRef.current[eventType] = now;
     logMutation.mutate({ token, event_type: eventType, meta });
   };
-
-  useEffect(() => {
-    if (!mediaStatusQuery.data) {
-      return;
-    }
-    setUploadedSegments(mediaStatusQuery.data.uploaded_segments);
-  }, [mediaStatusQuery.data]);
 
   useEffect(() => {
     codeRef.current = code;
@@ -1099,9 +1083,6 @@ const InterviewSessionPage = () => {
               </div>
               <p className="text-center text-[10px] font-medium text-slate-500 dark:text-[#a3aac4]">
                 {uploadedSegments} uploaded
-                {typeof mediaStatusQuery.data?.latest_sequence_number === "number"
-                  ? ` · latest #${mediaStatusQuery.data.latest_sequence_number}`
-                  : ""}
               </p>
             </div>
             <div className="grid grid-cols-1 gap-2">

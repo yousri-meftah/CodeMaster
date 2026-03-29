@@ -259,6 +259,8 @@ export type CandidateSession = {
   problems: InterviewProblem[];
 };
 
+const getActiveInterviewToken = () => sessionStorage.getItem("interview_active_token") ?? "";
+
 const normalizeProblem = (problem: ProblemApi): Problem => ({
   ...problem,
   tags: (problem.tags ?? []).map((tag) => tag.name),
@@ -503,8 +505,8 @@ export const interviewsAPI = {
 };
 
 export const interviewSessionAPI = {
-  getSession: async (token: string): Promise<CandidateSession> => (await api.get("/interview/session", { params: { token } })).data,
-  start: async (token: string): Promise<CandidateSession> => (await api.post("/interview/start", null, { params: { token } })).data,
+  getSession: async (token: string): Promise<CandidateSession> => (await api.post("/interview/session", { token })).data,
+  start: async (token: string): Promise<CandidateSession> => (await api.post("/interview/start/secure", { token })).data,
   save: async (payload: { token: string; problem_id: number; language: string; code: string; change_summary?: Record<string, unknown> }): Promise<InterviewCandidate> => (await api.post("/interview/save", payload)).data,
   submit: async (token: string): Promise<InterviewCandidate> => (await api.post("/interview/submit", { token })).data,
   log: async (payload: { token: string; event_type: string; meta?: Record<string, unknown> }): Promise<InterviewCandidate> => (await api.post("/interview/log", payload)).data,
@@ -534,8 +536,10 @@ export const interviewSessionAPI = {
       })
     ).data;
   },
-  getMediaStatus: async (token: string): Promise<InterviewMediaStatus> => (await api.get("/interview/media/status", { params: { token } })).data,
+  getMediaStatus: async (token: string): Promise<InterviewMediaStatus> => (await api.post("/interview/media/status", { token })).data,
   finalizeMedia: async (token: string): Promise<InterviewMediaStatus> => (await api.post("/interview/media/finalize", { token })).data,
 };
+
+export { getActiveInterviewToken };
 
 export default api;

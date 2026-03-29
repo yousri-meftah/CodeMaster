@@ -19,6 +19,7 @@ from schemas import (
     InterviewMediaSegmentStatusOut,
     InterviewSaveIn,
     InterviewSubmitIn,
+    InterviewTokenIn,
 )
 
 router = APIRouter()
@@ -32,10 +33,26 @@ def get_session(token: str, db: Session = Depends(get_db)):
         raise
 
 
+@router.post("/session", response_model=CandidateSessionOut)
+def get_session_secure(payload: InterviewTokenIn, db: Session = Depends(get_db)):
+    try:
+        return get_candidate_session(db=db, token=payload.token)
+    except HTTPException:
+        raise
+
+
 @router.post("/start", response_model=CandidateSessionOut)
 def start_session(token: str, db: Session = Depends(get_db)):
     try:
         return start_candidate_session(db=db, token=token)
+    except HTTPException:
+        raise
+
+
+@router.post("/start/secure", response_model=CandidateSessionOut)
+def start_session_secure(payload: InterviewTokenIn, db: Session = Depends(get_db)):
+    try:
+        return start_candidate_session(db=db, token=payload.token)
     except HTTPException:
         raise
 
@@ -103,6 +120,14 @@ def upload_media_segment(
 def media_status(token: str, db: Session = Depends(get_db)):
     try:
         return get_candidate_media_status(db=db, token=token)
+    except HTTPException:
+        raise
+
+
+@router.post("/media/status", response_model=InterviewMediaSegmentStatusOut)
+def media_status_secure(payload: InterviewTokenIn, db: Session = Depends(get_db)):
+    try:
+        return get_candidate_media_status(db=db, token=payload.token)
     except HTTPException:
         raise
 

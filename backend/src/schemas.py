@@ -374,6 +374,10 @@ class InterviewMediaFinalizeIn(BaseModel):
     token: str
 
 
+class InterviewTokenIn(BaseModel):
+    token: str
+
+
 class AuthResponseOut(BaseModel):
     token_type: str = "bearer"
     user: UserOut
