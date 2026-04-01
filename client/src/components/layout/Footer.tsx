@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Code, Github, Linkedin, Facebook } from "lucide-react";
+import { Github, Linkedin, Facebook } from "lucide-react";
 
 const Footer = () => {
   return (
@@ -8,8 +8,8 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <div className="flex items-center space-x-2 mb-4">
-              <Code className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">CodePractice</h3>
+              <img src="/logo.png" alt="CodeMaster logo" className="h-8 w-8 rounded-md object-cover" />
+              <h3 className="font-headline text-lg font-bold tracking-tight">CodeMaster</h3>
             </div>
             <p className="text-muted-foreground text-sm">
               Your platform for mastering coding interviews and improving
@@ -75,7 +75,7 @@ const Footer = () => {
         </div>
 
         <div className="mt-8 pt-6 border-t border-border text-center text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} CodePractice. All rights reserved.
+          &copy; {new Date().getFullYear()} CodeMaster. All rights reserved.
         </div>
       </div>
     </footer>

@@ -7,7 +7,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import UserMenu from "@/components/UserMenu";
 import MobileMenu from "@/components/layout/MobileMenu";
 import { Button } from "@/components/ui/button";
-import { Code, Flame } from "lucide-react";
+import { Flame } from "lucide-react";
 
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -38,9 +38,9 @@ const Header = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <div className="flex items-center space-x-2">
-            <Link href="/" className="flex items-center space-x-2">
-              <Code className="h-6 w-6 text-primary" />
-              <span className="font-bold text-xl">CodePractice</span>
+            <Link href="/" className="group flex items-center space-x-3">
+              <img src="/logo.png" alt="CodeMaster logo" className="h-8 w-8 rounded-md object-cover transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105" />
+              <span className="font-headline text-xl font-extrabold tracking-tight transition-colors duration-300 group-hover:text-primary">CodeMaster</span>
             </Link>
           </div>
 
@@ -50,7 +50,7 @@ const Header = () => {
               <Link
                 key={link.path}
                 href={link.path}
-                className={`font-medium py-2 transition-colors ${
+                className={`font-medium py-2 transition-all duration-200 hover:-translate-y-0.5 ${
                   isActiveLink(link.path)
                     ? "text-primary"
                     : "text-foreground/70 hover:text-primary"
@@ -66,7 +66,7 @@ const Header = () => {
             <ThemeToggle />
 
             <Link href={dailyProblem ? `/problems/${dailyProblem.id}` : "/problems"}>
-              <Button variant="ghost" size="sm" className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="flex items-center gap-2 transition-transform duration-200 hover:-translate-y-0.5">
                 <Flame className="h-4 w-4 text-orange-500" />
                 <span className="hidden sm:inline">Daily</span>
               </Button>

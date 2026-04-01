@@ -46,30 +46,32 @@ function Router() {
     <div className="flex flex-col min-h-screen">
       {!isChallengePath && <Header />}
       <main className={isChallengePath ? "flex-1" : isProblemWorkspace ? "flex-1 overflow-hidden" : isAuthPath ? "flex-1 overflow-hidden p-0" : "flex-1 container mx-auto px-4 py-6"}>
-        <Switch>
-          <Route path="/" component={HomePage} />
-          <Route path="/problems" component={ProblemsPage} />
-          <Route path="/problems/:id" component={ProblemDetailPage} />
-          <Route path="/explore" component={ExplorePage} />
-          <Route path="/roadmap" component={RoadmapPage} />
-          <Route path="/articles/:id" component={ArticleDetailPage} />
-          <Route path="/auth" component={AuthPage} />
-          <Route path="/auth/callback" component={AuthCallbackPage} />
-          <Route path="/challenge/session" component={InterviewSessionPage} />
-          <Route path="/challenge/thank-you" component={InterviewThankYouPage} />
-          <Route path="/challenge" component={InterviewEntryPage} />
-          <Route path="/interview" component={InterviewEntryPage} />
-          <ProtectedRoute path="/profile" component={ProfilePage} />
-          <ProtectedRoute path="/interviews" component={InterviewsPage} requireRole="recruiter" />
-          <ProtectedRoute path="/interviews/new" component={InterviewCreatePage} requireRole="recruiter" />
-          <ProtectedRoute path="/interviews/:id/edit" component={InterviewCreatePage} requireRole="recruiter" />
-          <ProtectedRoute path="/interviews/:id/candidates/:candidateId/records" component={InterviewCandidateRecordsPage} requireRole="recruiter" />
-          <ProtectedRoute path="/interviews/:id/candidates/:candidateId/logs" component={InterviewCandidateLogsPage} requireRole="recruiter" />
-          <ProtectedRoute path="/interviews/:id/candidates/:candidateId" component={InterviewCandidateReviewPage} requireRole="recruiter" />
-          <ProtectedRoute path="/interviews/:id" component={InterviewDetailPage} requireRole="recruiter" />
-          <ProtectedRoute path="/admin" component={AdminPage} requireRole="admin" />
-          <Route component={NotFound} />
-        </Switch>
+        <div key={location} className={isChallengePath ? "" : "animate-enter-soft"}>
+          <Switch>
+            <Route path="/" component={HomePage} />
+            <Route path="/problems" component={ProblemsPage} />
+            <Route path="/problems/:id" component={ProblemDetailPage} />
+            <Route path="/explore" component={ExplorePage} />
+            <Route path="/roadmap" component={RoadmapPage} />
+            <Route path="/articles/:id" component={ArticleDetailPage} />
+            <Route path="/auth" component={AuthPage} />
+            <Route path="/auth/callback" component={AuthCallbackPage} />
+            <Route path="/challenge/session" component={InterviewSessionPage} />
+            <Route path="/challenge/thank-you" component={InterviewThankYouPage} />
+            <Route path="/challenge" component={InterviewEntryPage} />
+            <Route path="/interview" component={InterviewEntryPage} />
+            <ProtectedRoute path="/profile" component={ProfilePage} />
+            <ProtectedRoute path="/interviews" component={InterviewsPage} requireRole="recruiter" />
+            <ProtectedRoute path="/interviews/new" component={InterviewCreatePage} requireRole="recruiter" />
+            <ProtectedRoute path="/interviews/:id/edit" component={InterviewCreatePage} requireRole="recruiter" />
+            <ProtectedRoute path="/interviews/:id/candidates/:candidateId/records" component={InterviewCandidateRecordsPage} requireRole="recruiter" />
+            <ProtectedRoute path="/interviews/:id/candidates/:candidateId/logs" component={InterviewCandidateLogsPage} requireRole="recruiter" />
+            <ProtectedRoute path="/interviews/:id/candidates/:candidateId" component={InterviewCandidateReviewPage} requireRole="recruiter" />
+            <ProtectedRoute path="/interviews/:id" component={InterviewDetailPage} requireRole="recruiter" />
+            <ProtectedRoute path="/admin" component={AdminPage} requireRole="admin" />
+            <Route component={NotFound} />
+          </Switch>
+        </div>
       </main>
       {!isChallengePath && !isProblemWorkspace && !isAuthPath && <Footer />}
     </div>
