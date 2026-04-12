@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
+import type { ElementType } from "react";
 import { Redirect, Route } from "wouter";
 
 export function ProtectedRoute({
@@ -8,7 +9,7 @@ export function ProtectedRoute({
   requireRole,
 }: {
   path: string;
-  component: () => React.JSX.Element;
+  component: ElementType;
   requireRole?: "admin" | "recruiter";
 }) {
   const { user, isLoading, isAdmin, isRecruiter } = useAuth();
@@ -47,5 +48,9 @@ export function ProtectedRoute({
     );
   }
 
-  return <Route path={path} component={Component} />;
+  return (
+    <Route path={path}>
+      <Component />
+    </Route>
+  );
 }
