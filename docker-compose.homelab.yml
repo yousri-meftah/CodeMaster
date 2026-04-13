@@ -1,0 +1,106 @@
+# Homelab deployment compose file for the whole CodeMaster project.
+
+services:
+  piston:
+    image: ghcr.io/engineer-man/piston:latest
+    container_name: piston
+    ports:
+      - "2000:2000"
+    privileged: true
+    volumes:
+      - piston-data:/piston
+    restart: unless-stopped
+    networks: [homelab]
+
+  codemaster-postgres:
+    image: postgres:15.4-alpine
+    container_name: codemaster-postgres
+    env_file:
+      - ./backend/envs/pg.env
+    environment:
+      - POSTGRES_HOST=codemaster-postgres
+    volumes:
+      - codemaster-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [homelab]
+
+  codemaster-backend:
+    image: ${CODEMASTER_BACKEND_IMAGE:-yousri1/codemaster-backend}:${CODEMASTER_IMAGE_TAG:-latest}
+    container_name: codemaster-backend
+    pull_policy: always
+    env_file:
+      - ./backend/envs/backend.env
+      - ./backend/envs/pg.env
+    environment:
+      - RUNNING_IN_DOCKER=1
+      - POSTGRES_HOST=codemaster-postgres
+      - HOST=0.0.0.0
+      - PORT=8000
+      - UVICORN_WORKERS=1
+      - PISTON_URL=http://piston:2000/api/v2
+    volumes:
+      - C:/Users/Yousri/Downloads/algo-compiler-1.6.0.jar:/opt/algo/algo-compiler-1.6.0.jar:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      piston:
+        condition: service_started
+      codemaster-postgres:
+        condition: service_healthy
+    command:
+      - sh
+      - -lc
+      - |
+        export POSTGRES_HOST="$${POSTGRES_HOST:-codemaster-postgres}"
+        export REDIS_URL="$${REDIS_URL:-redis://localhost:6379/0}"
+        export POSTGRES_URL="postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@$${POSTGRES_HOST}/$${POSTGRES_DB}"
+        echo 'Running Migrations'
+        alembic upgrade head
+        echo 'Running Server'
+        exec uvicorn src.main:app --host "$${HOST:-0.0.0.0}" --port "$${PORT:-8000}" --workers "$${UVICORN_WORKERS:-1}"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      homelab:
+        aliases:
+          - backend
+
+  codemaster-web:
+    image: ${CODEMASTER_WEB_IMAGE:-yousri1/codemaster-web}:${CODEMASTER_IMAGE_TAG:-latest}
+    container_name: codemaster-web
+    pull_policy: always
+    depends_on:
+      codemaster-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    ports:
+      - "80:80"
+      - "8091:80"
+    restart: unless-stopped
+    networks: [homelab]
+
+networks:
+  homelab:
+    external: true
+    name: homelab
+
+volumes:
+  codemaster-postgres-data:
+    name: codemaster-postgres-data
+  piston-data:
+    name: piston-data
