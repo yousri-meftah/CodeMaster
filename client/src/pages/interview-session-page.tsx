@@ -252,6 +252,18 @@ const InterviewSessionPage = () => {
   const mediaStopReasonRef = useRef<"idle" | "rotate" | "finalize" | "cleanup">("idle");
   const previousProblemIdRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    const preview = mediaPreviewRef.current;
+    const stream = mediaStreamRef.current;
+    if (!preview || !stream) {
+      return;
+    }
+    if (preview.srcObject !== stream) {
+      preview.srcObject = stream;
+    }
+    void preview.play().catch(() => undefined);
+  }, [cameraState]);
+
   const sessionQuery = useQuery<CandidateSession>({
     queryKey: ["candidate-session-active", token],
     queryFn: () => interviewSessionAPI.getSession(token),
@@ -771,7 +783,7 @@ const InterviewSessionPage = () => {
       }
     };
 
-    const segmentDurationMs = 10000;
+    const segmentDurationMs = 5000;
 
     const scheduleRotation = () => {
       if (mediaRotateTimeoutRef.current) {
@@ -795,7 +807,11 @@ const InterviewSessionPage = () => {
       ];
       const mimeType =
         preferredMimeTypes.find((candidate) => MediaRecorderImpl.isTypeSupported(candidate)) ?? "";
-      const recorder = mimeType ? new MediaRecorderImpl(stream, { mimeType }) : new MediaRecorderImpl(stream);
+      const recorderOptions: MediaRecorderOptions = {
+        videoBitsPerSecond: 350_000,
+        audioBitsPerSecond: 48_000,
+      };
+      const recorder = new MediaRecorderImpl(stream, mimeType ? { ...recorderOptions, mimeType } : recorderOptions);
       mediaRecorderRef.current = recorder;
 
       const segmentStartedAt = new Date();
@@ -841,7 +857,14 @@ const InterviewSessionPage = () => {
       setMicrophoneState("starting");
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640, max: 640 },
+            height: { ideal: 360, max: 360 },
+            frameRate: { ideal: 15, max: 15 },
+          },
+          audio: true,
+        });
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
@@ -1054,10 +1077,9 @@ const InterviewSessionPage = () => {
             </div>
             <div className="mb-3 flex flex-col items-center gap-2">
               <div className="relative">
-                <div className="flex h-20 w-16 items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-white dark:border-[#40485d] dark:bg-[#192540]">
-                  {cameraState === "ready" ? (
-                    <video ref={mediaPreviewRef} autoPlay muted playsInline className="h-full w-full object-cover" />
-                  ) : (
+                <div className="relative flex h-20 w-16 items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-white dark:border-[#40485d] dark:bg-[#192540]">
+                  <video ref={mediaPreviewRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${cameraState === "ready" ? "opacity-100" : "opacity-0"}`} />
+                  {cameraState !== "ready" && (
                     <Camera className={`h-4 w-4 ${getMediaTone(cameraState)}`} />
                   )}
                 </div>
