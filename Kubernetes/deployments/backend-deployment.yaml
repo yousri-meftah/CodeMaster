@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: codemaster-backend
+  namespace: codemaster
+  labels:
+    app.kubernetes.io/name: codemaster
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: codemaster
+      app.kubernetes.io/component: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: codemaster
+        app.kubernetes.io/component: backend
+    spec:
+      securityContext:
+        fsGroup: 100
+      containers:
+        - name: backend
+          image: yousri1/codemaster-backend:latest
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -lc
+            - |
+              until python -c "import os,socket; socket.create_connection((os.environ['POSTGRES_HOST'], 5432), 5).close()"; do
+                sleep 2
+              done
+              export POSTGRES_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/${POSTGRES_DB}"
+              exec uvicorn src.main:app --host "${HOST:-0.0.0.0}" --port "${PORT:-8000}" --workers "${UVICORN_WORKERS:-1}"
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: codemaster-backend
+            - secretRef:
+                name: codemaster-postgres
+            - secretRef:
+                name: codemaster-backend
+          volumeMounts:
+            - name: backend-media
+              mountPath: /backend/uploads
+            - name: algo-compiler
+              mountPath: /opt/algo
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 24
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+      volumes:
+        - name: backend-media
+          persistentVolumeClaim:
+            claimName: codemaster-backend-media
+        - name: algo-compiler
+          persistentVolumeClaim:
+            claimName: codemaster-algo-compiler

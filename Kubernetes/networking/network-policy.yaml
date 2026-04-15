@@ -1,0 +1,53 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: codemaster-postgres
+  namespace: codemaster
+  labels:
+    app.kubernetes.io/name: codemaster
+    app.kubernetes.io/component: postgres
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: codemaster
+      app.kubernetes.io/component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: codemaster
+              app.kubernetes.io/component: backend
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: codemaster
+              app.kubernetes.io/component: backend-migration
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: piston
+  namespace: codemaster
+  labels:
+    app.kubernetes.io/name: codemaster
+    app.kubernetes.io/component: piston
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: codemaster
+      app.kubernetes.io/component: piston
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: codemaster
+              app.kubernetes.io/component: backend
+      ports:
+        - protocol: TCP
+          port: 2000

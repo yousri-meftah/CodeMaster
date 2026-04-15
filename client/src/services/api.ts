@@ -326,7 +326,7 @@ api.interceptors.response.use(
       }
     }
 
-    if (status === 401 && !isCandidateInterviewUrl(url) && !isCandidateInterviewPath()) {
+    if (status === 401 && !isAuthBootstrapUrl(url) && !isCandidateInterviewUrl(url) && !isCandidateInterviewPath()) {
       window.dispatchEvent(new CustomEvent("auth:expired"));
     }
 

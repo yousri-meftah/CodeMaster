@@ -13,3 +13,5 @@ backend/envs/backend.env
 backend/envs/pg.env
 client/.env
 client/.env.*
+Kubernetes/secrets/*.yaml
+!Kubernetes/secrets/*.yaml.example

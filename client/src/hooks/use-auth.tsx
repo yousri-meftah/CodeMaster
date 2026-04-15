@@ -67,21 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handler = () => {
-      const path = window.location.pathname;
-      if (path.startsWith("/challenge") || path.startsWith("/interview")) {
-        return;
-      }
       queryClient.setQueryData(["user"], null);
-      toast({
-        title: "Session expired",
-        description: "Please sign in again.",
-        variant: "destructive",
-      });
-      setLocation("/auth");
     };
     window.addEventListener("auth:expired", handler);
     return () => window.removeEventListener("auth:expired", handler);
-  }, [queryClient, setLocation, toast]);
+  }, [queryClient]);
 
   const loginMutation = useMutation({
     mutationFn: authAPI.login,

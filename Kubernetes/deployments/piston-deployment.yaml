@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: piston
+  namespace: codemaster
+  labels:
+    app.kubernetes.io/name: codemaster
+    app.kubernetes.io/component: piston
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: codemaster
+      app.kubernetes.io/component: piston
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: codemaster
+        app.kubernetes.io/component: piston
+    spec:
+      containers:
+        - name: piston
+          image: ghcr.io/engineer-man/piston:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 2000
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: piston-data
+              mountPath: /piston
+          readinessProbe:
+            httpGet:
+              path: /api/v2/runtimes
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /api/v2/runtimes
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: piston-data
+          persistentVolumeClaim:
+            claimName: piston-data

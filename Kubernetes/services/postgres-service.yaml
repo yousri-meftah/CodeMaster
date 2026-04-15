@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: codemaster-postgres
+  namespace: codemaster
+  labels:
+    app.kubernetes.io/name: codemaster
+    app.kubernetes.io/component: postgres
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector:
+    app.kubernetes.io/name: codemaster
+    app.kubernetes.io/component: postgres

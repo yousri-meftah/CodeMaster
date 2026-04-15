@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: codemaster-backend
+  namespace: codemaster
+  labels:
+    app.kubernetes.io/name: codemaster
+    app.kubernetes.io/component: backend
+data:
+  RUNNING_IN_DOCKER: "1"
+  POSTGRES_HOST: codemaster-postgres
+  HOST: 0.0.0.0
+  PORT: "8000"
+  UVICORN_WORKERS: "1"
+  REDIS_URL: redis://localhost:6379/0
+  PISTON_URL: http://piston:2000/api/v2
+  PISTON_TIMEOUT_SECONDS: "15"
+  EXECUTION_MAX_WORKERS: "10"
+  MAIL_SEND_ENABLED: "true"
+  INTERVIEW_INVITE_RESEND_COOLDOWN_MINUTES: "30"
+  INTERVIEW_PUBLIC_BASE_URL: https://codemaster.yousri-meftah.com
+  INTERVIEW_MEDIA_UPLOAD_ROOT: /backend/uploads
+  ACCESS_TOKEN_EXPIRES_MINUTES: "15"
+  REFRESH_TOKEN_EXPIRES_DAYS: "14"
+  JWT_ISSUER: codemaster
+  JWT_AUDIENCE: codemaster
+  ACCESS_TOKEN_COOKIE_NAME: access_token
+  REFRESH_TOKEN_COOKIE_NAME: refresh_token
+  AUTH_COOKIE_SECURE: "true"
+  AUTH_COOKIE_SAMESITE: strict
+  AUTH_COOKIE_PATH: /
+  AUTH_COOKIE_DOMAIN: ""
+  OAUTH_FRONTEND_BASE_URL: https://codemaster.yousri-meftah.com
+  OAUTH_FRONTEND_CALLBACK_PATH: /auth/callback
+  OAUTH_BACKEND_BASE_URL: https://codemaster.yousri-meftah.com/api
+  R2_REGION: auto
+  R2_PRESIGNED_URL_TTL_SECONDS: "3600"
+  ALGO_COMPILER_JAR: /opt/algo/algo-compiler-1.6.0.jar
+  JAVA_BIN: java
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_AUTH_LOGIN: 10/minute
+  RATE_LIMIT_AUTH_REGISTER: 5/minute
+  RATE_LIMIT_SUBMISSION_RUN: 5/minute
+  RATE_LIMIT_SUBMISSION_SUBMIT: 10/minute
+  ADMIN_BOOTSTRAP_ENABLED: "true"
