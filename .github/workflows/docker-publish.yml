@@ -107,21 +107,21 @@ jobs:
           Set-Location $env:HOMELAB_REPO_PATH
           docker compose -f docker-compose.yml -f docker-compose.codemaster.yml up -d codemaster-backend codemaster-web
 
-      - name: Wait for backend health
+      - name: Wait for backend container health
         shell: powershell
         run: |
           $deadline = (Get-Date).AddMinutes(5)
           do {
             try {
-              $response = Invoke-WebRequest -UseBasicParsing http://localhost:8000/healthz -TimeoutSec 5
-              if ($response.StatusCode -eq 200) {
+              $status = docker inspect --format "{{.State.Health.Status}}" codemaster-backend
+              if ($status.Trim() -eq "healthy") {
                 exit 0
               }
             } catch {
               Start-Sleep -Seconds 5
             }
           } while ((Get-Date) -lt $deadline)
-          throw "Backend health check failed at http://localhost:8000/healthz"
+          throw "Backend container health check failed for codemaster-backend"
 
       - name: Wait for web health
         shell: powershell
