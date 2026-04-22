@@ -74,3 +74,67 @@ jobs:
           push: true
           tags: ${{ steps.web_meta.outputs.tags }}
           labels: ${{ steps.web_meta.outputs.labels }}
+
+  deploy-homelab:
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, windows, homelab]
+    concurrency:
+      group: codemaster-homelab-deploy
+      cancel-in-progress: false
+    env:
+      HOMELAB_REPO_PATH: ${{ vars.HOMELAB_REPO_PATH }}
+    steps:
+      - name: Validate homelab repo path
+        shell: powershell
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:HOMELAB_REPO_PATH)) {
+            throw "Repository variable HOMELAB_REPO_PATH is not set."
+          }
+          if (-not (Test-Path $env:HOMELAB_REPO_PATH)) {
+            throw "HOMELAB_REPO_PATH does not exist: $env:HOMELAB_REPO_PATH"
+          }
+
+      - name: Pull latest CodeMaster images
+        shell: powershell
+        run: |
+          Set-Location $env:HOMELAB_REPO_PATH
+          docker compose -f docker-compose.yml -f docker-compose.codemaster.yml pull codemaster-backend codemaster-web
+
+      - name: Recreate backend and web
+        shell: powershell
+        run: |
+          Set-Location $env:HOMELAB_REPO_PATH
+          docker compose -f docker-compose.yml -f docker-compose.codemaster.yml up -d codemaster-backend codemaster-web
+
+      - name: Wait for backend health
+        shell: powershell
+        run: |
+          $deadline = (Get-Date).AddMinutes(5)
+          do {
+            try {
+              $response = Invoke-WebRequest -UseBasicParsing http://localhost:8000/healthz -TimeoutSec 5
+              if ($response.StatusCode -eq 200) {
+                exit 0
+              }
+            } catch {
+              Start-Sleep -Seconds 5
+            }
+          } while ((Get-Date) -lt $deadline)
+          throw "Backend health check failed at http://localhost:8000/healthz"
+
+      - name: Wait for web health
+        shell: powershell
+        run: |
+          $deadline = (Get-Date).AddMinutes(5)
+          do {
+            try {
+              $response = Invoke-WebRequest -UseBasicParsing http://localhost/healthz -TimeoutSec 5
+              if ($response.StatusCode -eq 200) {
+                exit 0
+              }
+            } catch {
+              Start-Sleep -Seconds 5
+            }
+          } while ((Get-Date) -lt $deadline)
+          throw "Web health check failed at http://localhost/healthz"
