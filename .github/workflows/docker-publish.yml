@@ -75,5 +75,14 @@ jobs:
           tags: ${{ steps.web_meta.outputs.tags }}
           labels: ${{ steps.web_meta.outputs.labels }}
       - name: Trigger Jenkins CD
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
         run: |
-          curl -X POST "${{ secrets.JENKINS_DEPLOY_URL }}"
+          CRUMB=$(curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
+            "$JENKINS_URL/crumbIssuer/api/json" | jq -r '.crumb')
+
+          curl -X POST -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
+            -H "Jenkins-Crumb:$CRUMB" \
+            "$JENKINS_URL/job/CodeMaster/build"
