@@ -74,3 +74,6 @@ jobs:
           push: true
           tags: ${{ steps.web_meta.outputs.tags }}
           labels: ${{ steps.web_meta.outputs.labels }}
+      - name: Trigger Jenkins CD
+        run: |
+          curl -X POST "${{ secrets.JENKINS_DEPLOY_URL }}"
