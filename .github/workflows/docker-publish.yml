@@ -85,4 +85,4 @@ jobs:
 
           curl -X POST -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
             -H "Jenkins-Crumb:$CRUMB" \
-            "$JENKINS_URL/job/CodeMaster/build"
+            "$JENKINS_URL/job/codemaster-cd/build"
