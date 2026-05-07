@@ -15,3 +15,9 @@ client/.env
 client/.env.*
 Kubernetes/secrets/*.yaml
 !Kubernetes/secrets/*.yaml.example
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
