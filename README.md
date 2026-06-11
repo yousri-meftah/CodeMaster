@@ -10,82 +10,60 @@
 
 ---
 
-## 🚀 Overview
+# CodeMaster
 
-CodeMaster is a full-stack coding platform for technical practice and interview workflows.  
-It allows users to solve problems, run code, and participate in recruiter-led interviews.
+CodeMaster is a full-stack coding platform designed for technical practice and coding interviews. It provides an online coding environment, problem management, secure authentication, recruiter-managed interview sessions, and candidate activity monitoring in a single system.
 
----
+Built with React, FastAPI, PostgreSQL, Docker, and Nginx, the platform supports both learning and hiring workflows while offering production-ready deployment and monitoring capabilities.
 
-## ⚙️ Tech Stack
+## Features
 
-- **Frontend:** React, Vite, TypeScript  
-- **Backend:** FastAPI  
-- **Database:** PostgreSQL  
-- **Execution:** Code Runner (Piston)  
-- **Proxy:** Nginx  
-- **Deployment:** Docker Compose  / k8s
-- **Monitoring:** Grafana , Prometheus , Loki
-- **Storage:** Cloudflare R2  
-- **Access:** Cloudflare Tunnel  
+- Online code editor and submission system
+- Multi-language code execution
+- Practice problems with tags, constraints, and starter code
+- JWT authentication with secure cookie sessions
+- Google and GitHub OAuth login
+- User, recruiter, and admin roles
+- Recruiter-created coding interviews and candidate invitations
+- Candidate progress tracking and attempt management
+- Camera and microphone recording during interviews
+- Cloudflare R2 media storage for interview recordings
+- Dockerized infrastructure with monitoring support
 
----
+## Demo
 
-## 🧱 Architecture
+Recommended playback speed: **2x**
+
+<video src="https://github.com/user-attachments/assets/3bc569c0-8181-4888-915b-a8dc9a152649" controls width="100%"></video>
+
+**Video Download:**  
+[Download Demo](https://github.com/user-attachments/assets/3bc569c0-8181-4888-915b-a8dc9a152649)
+
+## Cloudflare R2 Storage
+
+Interview recordings and media uploads are stored in Cloudflare R2 and accessed through secure backend-generated presigned URLs.
+
+![Cloudflare R2 Setup](Demo/images/Cloudflare_R2.PNG)
+
+## Tech Stack
+
+- **Frontend:** React, TypeScript, Vite
+- **Backend:** FastAPI, SQLAlchemy, Alembic
+- **Database:** PostgreSQL
+- **Infrastructure:** Docker, Docker Compose, Nginx
+- **Monitoring:** Prometheus, Grafana
+- **Storage:** Cloudflare R2
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    Browser --> Nginx
-    Nginx --> Frontend
-    Nginx --> Backend
-    Frontend --> Backend
-    Backend --> PostgreSQL
-    Backend --> CodeRunner
-    Backend --> CloudflareR2
+    Browser["Browser"] --> Web["Nginx + Frontend"]
+    Web --> API["FastAPI Backend"]
+    API --> DB["PostgreSQL"]
+    API --> Runner["Code Execution Service"]
 ```
 
+## Monitoring
 
-## ⚡ Features
-
-- Code execution in multiple languages  
-- Problem solving & submissions  
-- User authentication (JWT + OAuth)  
-- Recruiter interview system  
-- Candidate recording & review  
-- Cloud storage (R2) for media  
-- Dockerized deployment  
-
----
-
-## 🐳 Run with Docker
-
-```bash
-docker compose up -d --build
-```
-
----
-
-## 🌐 Access
-
-- Frontend → http://localhost  
-- Backend → http://localhost/api  
-
----
-
-## 📊 Monitoring (Optional)
-
-- Grafana dashboard for metrics  
-
----
-
-## 🔐 Notes
-
-- Configure `.env` before running  
-- Keep secrets outside repo  
-- Use Cloudflare Tunnel for public access  
-
----
-
-## 👨‍💻 Author
-
-**Yousri Meftah**
+Optional monitoring is included through Prometheus and Grafana for infrastructure and application observability.
